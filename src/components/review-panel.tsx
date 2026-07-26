@@ -8,6 +8,9 @@ import { ContextCard } from "@/components/context-card";
 type ReviewPanelProps = {
   participants: string[];
   proposal: ContextObjectView;
+  recordResponseAction: (
+    formData: FormData,
+  ) => Promise<ContextObjectView>;
   viewer: "fred" | "sara";
 };
 
@@ -39,36 +42,31 @@ function originCopy(object: ContextObjectView) {
 export function ReviewPanel({
   participants,
   proposal,
+  recordResponseAction,
   viewer,
 }: ReviewPanelProps) {
   const [stance, setStance] = useState<Stance | null>(null);
   const [perspective, setPerspective] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
   const [recordedObject, setRecordedObject] =
     useState<ContextObjectView | null>(null);
-  const viewerName = viewer === "sara" ? "Sara" : "Fred";
 
-  function recordResponse(event: FormEvent<HTMLFormElement>) {
+  async function recordResponse(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!stance) {
+    if (!stance || isRecording) {
       return;
     }
 
-    setRecordedObject({
-      ...proposal,
-      lifecycleStatus: "active",
-      responses: [
-        ...proposal.responses.filter(
-          (response) => response.displayName !== viewerName,
-        ),
-        {
-          displayName: viewerName,
-          stance,
-          responseText: perspective.trim() || null,
-          createdAt: new Date().toISOString(),
-        },
-      ],
-    });
+    setIsRecording(true);
+
+    try {
+      const formData = new FormData(event.currentTarget);
+      const nextObject = await recordResponseAction(formData);
+      setRecordedObject(nextObject);
+    } finally {
+      setIsRecording(false);
+    }
   }
 
   return (
@@ -98,6 +96,7 @@ export function ReviewPanel({
             perspective={perspective}
             proposal={proposal}
             recordResponse={recordResponse}
+            isRecording={isRecording}
             setPerspective={setPerspective}
             setStance={setStance}
             stance={stance}
@@ -110,6 +109,7 @@ export function ReviewPanel({
 }
 
 type ReviewFormProps = {
+  isRecording: boolean;
   perspective: string;
   proposal: ContextObjectView;
   recordResponse: (event: FormEvent<HTMLFormElement>) => void;
@@ -120,6 +120,7 @@ type ReviewFormProps = {
 };
 
 function ReviewForm({
+  isRecording,
   perspective,
   proposal,
   recordResponse,
@@ -150,6 +151,7 @@ function ReviewForm({
       <form className="mt-6" method="post" onSubmit={recordResponse}>
         <input name="as" type="hidden" value={viewer} />
         <input name="objectId" type="hidden" value={proposal.id} />
+        <input name="stance" type="hidden" value={stance ?? ""} />
 
         <fieldset>
           <legend className="sr-only">Choose your response</legend>
@@ -201,7 +203,7 @@ function ReviewForm({
         <div className="mt-7 flex justify-end">
           <button
             className="min-h-11 border border-ink bg-ink px-5 py-3 text-[15px] font-semibold text-card disabled:cursor-not-allowed disabled:opacity-45"
-            disabled={!stance}
+            disabled={!stance || isRecording}
             type="submit"
           >
             Record response

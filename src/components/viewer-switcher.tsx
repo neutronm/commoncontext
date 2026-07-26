@@ -1,26 +1,33 @@
-import Link from "next/link";
+"use client";
+
+import { useRouter } from "next/navigation";
 
 type ViewerSwitcherProps = {
   viewer: "fred" | "sara";
 };
 
 export function ViewerSwitcher({ viewer }: ViewerSwitcherProps) {
-  const otherViewer = viewer === "fred" ? "sara" : "fred";
+  const router = useRouter();
 
   return (
     <div className="flex items-center gap-3">
-      <span className="font-mono text-[11px] tracking-[0.06em] text-ink-muted uppercase">
-        Viewing as
-      </span>
-      <Link
-        className="border border-rule bg-card px-3 py-2 font-mono text-[11px] tracking-[0.06em] text-ink uppercase"
-        href={`/workspace?as=${otherViewer}`}
+      <label
+        className="font-mono text-[11px] tracking-[0.06em] text-ink-muted uppercase"
+        htmlFor="viewer"
       >
-        {viewer}
-        <span aria-hidden="true" className="ml-2 text-ink-muted">
-          ▾
-        </span>
-      </Link>
+        Viewing as
+      </label>
+      <select
+        className="border border-rule bg-card px-3 py-2 font-mono text-[11px] tracking-[0.06em] text-ink uppercase"
+        id="viewer"
+        onChange={(event) =>
+          router.push(`/workspace?as=${event.target.value}`)
+        }
+        value={viewer}
+      >
+        <option value="fred">Fred</option>
+        <option value="sara">Sara</option>
+      </select>
     </div>
   );
 }

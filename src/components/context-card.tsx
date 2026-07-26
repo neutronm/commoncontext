@@ -7,7 +7,7 @@ type ContextCardProps = {
   participants: string[];
 };
 
-function semanticState(object: ContextObjectView) {
+function semanticState(object: ContextObjectView, participants: string[]) {
   if (object.lifecycleStatus === "superseded") {
     return "bg-rule";
   }
@@ -22,7 +22,7 @@ function semanticState(object: ContextObjectView) {
   }
 
   if (
-    participantsAccepted(object) &&
+    participantsAccepted(object, participants) &&
     object.lifecycleStatus !== "pending"
   ) {
     return "bg-agreed";
@@ -31,10 +31,19 @@ function semanticState(object: ContextObjectView) {
   return "bg-pending";
 }
 
-function participantsAccepted(object: ContextObjectView) {
+function participantsAccepted(
+  object: ContextObjectView,
+  participants: string[],
+) {
   return (
-    object.responses.length > 0 &&
-    object.responses.every((response) => response.stance === "accepted")
+    participants.length > 0 &&
+    participants.every((participant) =>
+      object.responses.some(
+        (response) =>
+          response.displayName === participant &&
+          response.stance === "accepted",
+      ),
+    )
   );
 }
 
@@ -66,7 +75,7 @@ export function ContextCard({ object, participants }: ContextCardProps) {
       {!isPrivate && (
         <span
           aria-hidden="true"
-          className={`absolute inset-y-0 left-0 w-[3px] ${semanticState(object)}`}
+          className={`absolute inset-y-0 left-0 w-[3px] ${semanticState(object, participants)}`}
         />
       )}
 
