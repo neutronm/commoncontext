@@ -137,6 +137,8 @@ Order matters more than it looks. Under a naive alphabetical or as-written evalu
 
 > Propose a new item for the shared project context. This does NOT share anything immediately — it creates a pending proposal that the other participants must review and respond to before it becomes shared context. Use this when the user asks to record, save, or add something to the shared project. Always tell the user afterward that the item is pending review and not yet agreed.
 
+Here, "share" means acceptance into canonical shared context. The pending proposal is visible to its audience so they can review it, while remaining unresolved and not agreed.
+
 **Input schema:**
 ```ts
 z.object({
@@ -156,7 +158,7 @@ No audience parameter — the demo has one workspace and both founders are alway
   "id": "…",
   "review_url": "https://<web-worker>.workers.dev/review/<id>?as=sara",
   "shared_with": ["Sara"],
-  "message": "Created as a pending proposal. Sara has not seen or agreed to this yet. It will not appear as shared context until she responds."
+  "message": "Created as a pending proposal. Sara can see it for review but has not agreed to it. It is not canonical shared context until she responds."
 }
 ```
 
@@ -218,4 +220,4 @@ Whichever you pick, **disable every other connector** in both sessions before re
 2. `get_shared_context` on Sara's token returns valid JSON with all seven buckets present (empty arrays allowed) and zero objects authored privately by Fred.
 3. `propose_shared_context` creates a `pending` object and returns a `review_url` that loads.
 4. `respond_to_context` with a non-audience caller returns an error, not a silent no-op.
-5. An invalid token returns 401 before any DB query runs.
+5. An invalid token returns 401 after the required token-table lookup, with no database access beyond that lookup and no domain or tool work for the unknown token.

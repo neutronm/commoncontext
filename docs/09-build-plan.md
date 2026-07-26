@@ -42,10 +42,10 @@ This is a read-through, not a test run. You're checking that three independent i
 
 ## Phase 3 — Merge
 
-Merge all three branches to `main`. Then two small phase-2 dispatches:
+Merge all three branches to `main`. Then two small integration dispatches:
 
 - **Agent B:** delete `stub-domain.ts`, import from `../src/domain/context`, re-run the inspector checks.
-- **Agent C:** replace the `mock-data` import in the two page files with real domain calls, re-take the screenshots.
+- **Agent C:** perform the separate DB-wiring phase described in doc 07: replace the `mock-data` imports in the two page files with real domain calls, add the required dynamic-rendering declarations, and re-take the screenshots.
 
 Both are single-seam changes by construction — that's why phase 1 forbade touching the seam.
 

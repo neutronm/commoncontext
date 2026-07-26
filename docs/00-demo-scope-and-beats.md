@@ -43,7 +43,7 @@ Fred's private object **does** say exactly that. It is never retrieved, never su
 ### Beat 3 — Propose (rewind starts here)
 Fred, in his own assistant: *"We agreed to launch on August 15 — add that to our shared project context."*
 
-The assistant calls `propose_shared_context`. Nothing is shared yet. A pending proposal is created and a review link returned.
+The assistant calls `propose_shared_context`. A pending proposal is created, becomes visible to its audience for review, and returns a review link. It is not yet accepted or canonical shared context.
 
 **What this proves:** the assistant cannot publish on the user's behalf.
 

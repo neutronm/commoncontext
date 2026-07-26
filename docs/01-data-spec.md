@@ -66,7 +66,7 @@ That sentence is the whole security model for the demo. Implement it in exactly 
 
 **There is no `visibility` column.** `ContextObjectView.visibility` is *derived*: an object is `private` when its audience is exactly its author, `shared` otherwise. A stored flag can drift from the audience table, and a card that renders as private while the audience table says otherwise is the one bug that would make the demo actively dishonest. Derive it; don't store it.
 
-`origin` exists because doc 03's review page displays "Proposed through Fred's assistant." Seeded rows are `seed`, objects from `propose_shared_context` are `assistant`, responses recorded on the web are `web`. Without the column, Agent C hardcodes that line and it lies the moment anything is created another way.
+`origin` exists because doc 03's review page displays "Proposed through Fred's assistant." It belongs to context objects, not participant responses. Seeded objects are `seed`, and objects from `propose_shared_context` are `assistant`; `web` remains an allowed object origin, but this demo's web response flow writes only to `participant_responses`, which has no `origin` field. Without the column, Agent C hardcodes that line and it lies the moment an object is created another way.
 
 `pending` = proposed but not yet responded to. It is visible to its audience (they must review it) but must be reported as *not agreed* in any AI answer.
 
@@ -110,7 +110,7 @@ Without it, a double-click on the review button writes two rows, `stances` becom
 2. `getAuthorizedObjects(sara)` returns **zero** objects authored privately by Fred. Automated test, not a manual check.
 3. `getAuthorizedObjects(sara)` output contains no string matching `/september/i`.
 4. `respondToObject` by a non-audience user throws.
-5. Object count for Fred = 11, for Sara = 11 before Beat 3 creates L1 (see table below).
+5. Immediately after seeding and before Beat 3 creates L1, the authorized-object count is 11 for Fred and 11 for Sara. After Beat 3 it is 12 for each; because capture order is 3 → 1 → 2 → 4 → 5, the Beat 1–2 capture window has 12 for each (see table below).
 
 ---
 
@@ -225,8 +225,8 @@ P2  2026-07-24T18:30:00Z
 Timeline order is newest first. S10 sitting near the top is deliberate: the disagreement should be visible without scrolling in the Beat 5 shot.
 
 ### Seed counts
-- Fred sees: P1, S1–S10 = 11 during Beats 1–2, 12 after Beat 3 creates L1.
-- Sara sees: P2, S1–S10 (11) = 11 during Beats 1–2, 12 after Beat 3.
+- Fred sees after seeding, before Beat 3: P1 plus S1–S10 = 11. Beat 3 adds L1, so Fred sees 12 during the subsequently captured Beats 1–2.
+- Sara sees after seeding, before Beat 3: P2 plus S1–S10 = 11. Beat 3 adds L1, so Sara sees 12 during the subsequently captured Beats 1–2.
 
 *(Adjust the done-criteria counts if you add objects. Keep them exact — they're a cheap regression test.)*
 

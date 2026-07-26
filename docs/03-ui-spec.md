@@ -31,6 +31,8 @@ The reference world is version control and chain-of-custody documents: attribute
 | `disputed` | `#A63D2F` | disputed or rejected |
 | `private` | `#5A6472` | visible only to author |
 
+The token names and semantic meanings are fixed; the hex values above are targets pending Agent C's contrast verification. The 4.5:1 requirement below is authoritative, so adjust semantic token values as necessary while preserving their meanings.
+
 Do not add a brand accent. Every color on screen must mean something; a decorative sixth color would break the one rule the design has.
 
 ### Type
@@ -108,11 +110,11 @@ Route: `/workspace`
 3. Provenance lines (mono): `supersedes`, `source`, where present
 4. Stance strip
 
-**Private objects** get a dashed `private` border, no gutter bar, and a `PRIVATE TO YOU` chip in the metadata line. Sara's timeline simply doesn't contain them.
+**Private objects** get a dashed `private` border, no gutter bar, and a `PRIVATE TO YOU` chip in the metadata line. Each viewer sees their own private object and never another founder's: Sara sees P2, but P1 is absent from her timeline.
 
-> This is why the demo shows both timelines back to back. Fred's screen has a dashed card; Sara's has nothing where it would be. The absence is the proof, and it only reads if the private card looks visibly different when it *is* there.
+> This is why the demo shows both timelines back to back. Fred's screen has P1 as a dashed card; Sara's has nothing where P1 would be, while her own P2 is dashed elsewhere. The absence of the other founder's card is the proof, and it only reads if the viewer's own private card looks visibly different when it *is* there.
 
-**Superseded objects:** claim text at 45% opacity with a strikethrough, gutter in `rule` grey. Keep them in the stream — removing them would defeat the point.
+**Superseded objects:** claim text at reduced opacity with a strikethrough, gutter in `rule` grey. The 4.5:1 requirement remains authoritative; adjust the semantic token and/or opacity as necessary rather than treating a specific opacity as fixed. Keep superseded objects in the stream — removing them would defeat the point.
 
 **"Viewing as" switcher:** top-right, switches between Fred and Sara by rewriting the `?as=` query parameter (see doc 04 — there is no login). Backstop for the demo: if a live MCP session misbehaves mid-take, you can still show the authorization boundary by flipping this control. Style it quietly — it must not look like a core feature.
 
@@ -139,7 +141,7 @@ Route: `/review/[id]` — the URL `propose_shared_context` returns. Sara opens t
 │  │ Proposed through Fred's assistant · 2 minutes ago │  │
 │  └───────────────────────────────────────────────────┘  │
 │                                                         │
-│  Nothing is shared until you respond.                   │
+│  Nothing becomes shared context until you respond.      │
 │                                                         │
 │  [ Accept ]  [ Dispute ]  [ Acknowledge ]               │
 │                                                         │
@@ -176,7 +178,7 @@ These override normal web conventions. The screen will be recorded, compressed, 
 
 1. **Nothing important on hover.** A partner watching a recording never sees hover states, and a moving cursor pulls the eye. Every fact in the demo must be visible at rest.
 2. **No animation** beyond instant state changes. Transitions read as lag on compressed video.
-3. **Minimum 11px, minimum 4.5:1 contrast.** The muted-grey-on-white metadata that looks elegant in the browser disappears entirely after upload.
+3. **Minimum 11px, minimum 4.5:1 contrast.** This is authoritative over the palette hex targets and reduced-opacity styling above: adjust semantic token values and/or opacity as necessary to pass. The muted-grey-on-white metadata that looks elegant in the browser disappears entirely after upload.
 4. **Zoom to ~125% before recording.** Design at a max content width of 720px so it still fills the frame when zoomed.
 5. **No toasts that auto-dismiss under 5 seconds.** They'll vanish before the viewer registers them.
 
@@ -185,7 +187,7 @@ These override normal web conventions. The screen will be recorded, compressed, 
 ## Done-criteria (Agent C self-verifies)
 
 1. Both screens render the doc 01 seed data with no placeholder or lorem text anywhere.
-2. Fred's timeline shows exactly one dashed private card; Sara's shows none.
+2. Fred's and Sara's timelines each show exactly one dashed private card—the viewer's own—and Sara shows zero other-founder private cards.
 3. The stance strip appears on every card including private ones (`SARA · no access`).
 4. One superseded card is visibly struck through and still present in the stream.
 5. `/review/[id]` for the pending object renders all three stance buttons and posts a real response.
