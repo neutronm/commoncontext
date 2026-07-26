@@ -3,6 +3,7 @@ import { createMcpHandler } from "agents/mcp";
 import postgres from "postgres";
 
 import * as domain from "../../src/domain/context";
+import { resolveAuthenticatedCaller } from "./auth";
 import { registerGetSharedContextTool } from "./tools/get-shared-context";
 import { registerProposeSharedContextTool } from "./tools/propose-shared-context";
 import { registerRespondToContextTool } from "./tools/respond-to-context";
@@ -47,12 +48,13 @@ export default {
       fetch_types: false,
     });
 
-    let caller;
-    try {
-      caller = await domain.resolveCaller(sql, token);
-    } catch {
-      return unauthorized();
-    }
+    const callerResolution = await resolveAuthenticatedCaller(
+      sql,
+      token,
+      domain.resolveCaller,
+    );
+    if (callerResolution.status === "unknown_token") return unauthorized();
+    const caller = callerResolution.caller;
 
     const server = new McpServer({
       name: "Shared Context",

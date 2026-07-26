@@ -12,8 +12,67 @@ type ProposeSharedContextDependencies = {
   sql: Sql;
   caller: Caller;
   publicAppUrl: string;
-  domain: Pick<DomainApi, "createProposal">;
+  domain: Pick<DomainApi, "createProposal" | "getWorkspaceParticipants">;
 };
+
+type ProposeSharedContextInput = {
+  text: string;
+  type: "decision" | "perspective" | "task" | "blocker" | "open_question";
+  epistemic_status:
+    | "verified_fact"
+    | "reported_fact"
+    | "perspective"
+    | "proposal";
+};
+
+function participantList(names: string[]): string {
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
+}
+
+function proposalMessage(sharedWith: string[]): string {
+  if (sharedWith.length === 0) {
+    return "Created as a pending proposal. No other workspace participants are available to review it yet. It will not appear as shared context until another participant responds.";
+  }
+
+  const participants = participantList(sharedWith);
+  const has = sharedWith.length === 1 ? "has" : "have";
+  const responds = sharedWith.length === 1 ? "responds" : "respond";
+  return `Created as a pending proposal. ${participants} ${has} not seen or agreed to this yet. It will not appear as shared context until ${participants} ${responds}.`;
+}
+
+export async function createProposalResult(
+  dependencies: ProposeSharedContextDependencies,
+  input: ProposeSharedContextInput,
+) {
+  const participants =
+    await dependencies.domain.getWorkspaceParticipants(
+      dependencies.sql,
+      dependencies.caller.workspaceId,
+    );
+  const sharedWith = participants.filter(
+    (participant) => participant !== dependencies.caller.displayName,
+  );
+  const proposal = await dependencies.domain.createProposal(
+    dependencies.sql,
+    {
+      caller: dependencies.caller,
+      text: input.text,
+      type: input.type,
+      epistemicStatus: input.epistemic_status,
+    },
+  );
+  const reviewUrl = `${dependencies.publicAppUrl.replace(/\/$/, "")}${proposal.reviewPath}`;
+
+  return {
+    status: "pending_review",
+    id: proposal.id,
+    review_url: reviewUrl,
+    shared_with: sharedWith,
+    message: proposalMessage(sharedWith),
+  };
+}
 
 export function registerProposeSharedContextTool(
   server: McpServer,
@@ -47,24 +106,11 @@ export function registerProposeSharedContextTool(
       }),
     },
     async ({ text, type, epistemic_status }) => {
-      const proposal = await dependencies.domain.createProposal(
-        dependencies.sql,
-        {
-          caller: dependencies.caller,
-          text,
-          type,
-          epistemicStatus: epistemic_status,
-        },
-      );
-      const reviewUrl = `${dependencies.publicAppUrl.replace(/\/$/, "")}${proposal.reviewPath}`;
-      const result = {
-        status: "pending_review",
-        id: proposal.id,
-        review_url: reviewUrl,
-        shared_with: ["Sara"],
-        message:
-          "Created as a pending proposal. Sara has not seen or agreed to this yet. It will not appear as shared context until she responds.",
-      };
+      const result = await createProposalResult(dependencies, {
+        text,
+        type,
+        epistemic_status,
+      });
 
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
