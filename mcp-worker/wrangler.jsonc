@@ -1,0 +1,16 @@
+{
+  // Placeholder created during scaffold (doc 08 steps 3, 6, 7).
+  // Agent B owns this file from dispatch onward; the bindings and vars below
+  // are Fred's and must keep the same Hyperdrive id as the root wrangler.jsonc.
+  "name": "shared-context-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "acb50f8883af4c8b97bee08f57412284" }],
+  "vars": {
+    "DEMO_TOKEN_FRED": "1fc8849b795c1ca6ab2147fa69fce50ac5b42c7d76391e90",
+    "DEMO_TOKEN_SARA": "5cb358a1f1411c58f0a8eaa10e84386f0f406940519ad2bf",
+    // Deployed web Worker URL (doc 08 step 7).
+    "PUBLIC_APP_URL": "https://shared-context-web.neutron-m74.workers.dev"
+  }
+}
