@@ -55,7 +55,7 @@ describe("createProposalResult", () => {
       review_url: "https://app.example/review/proposal-id?as=sara",
       shared_with: ["Sara"],
       message:
-        "Created as a pending proposal. Sara has not seen or agreed to this yet. It will not appear as shared context until Sara responds.",
+        "Created as a pending proposal. Sara can see it for review but has not agreed to it. It is not canonical shared context until Sara responds.",
     });
   });
 
@@ -78,7 +78,7 @@ describe("createProposalResult", () => {
       review_url: "https://app.example/review/proposal-id?as=sara",
       shared_with: ["Fred"],
       message:
-        "Created as a pending proposal. Fred has not seen or agreed to this yet. It will not appear as shared context until Fred responds.",
+        "Created as a pending proposal. Fred can see it for review but has not agreed to it. It is not canonical shared context until Fred responds.",
     });
   });
 });

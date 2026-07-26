@@ -33,13 +33,13 @@ function participantList(names: string[]): string {
 
 function proposalMessage(sharedWith: string[]): string {
   if (sharedWith.length === 0) {
-    return "Created as a pending proposal. No other workspace participants are available to review it yet. It will not appear as shared context until another participant responds.";
+    return "Created as a pending proposal. There are no other workspace participants who can see it for review yet. It is not canonical shared context until another participant responds.";
   }
 
   const participants = participantList(sharedWith);
   const has = sharedWith.length === 1 ? "has" : "have";
   const responds = sharedWith.length === 1 ? "responds" : "respond";
-  return `Created as a pending proposal. ${participants} ${has} not seen or agreed to this yet. It will not appear as shared context until ${participants} ${responds}.`;
+  return `Created as a pending proposal. ${participants} can see it for review but ${has} not agreed to it. It is not canonical shared context until ${participants} ${responds}.`;
 }
 
 export async function createProposalResult(
