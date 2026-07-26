@@ -78,7 +78,10 @@ async function selectAuthorizedObjects(
       on superseded_object.id = context_object.supersedes_object_id
     join lateral (
       select
-        array_agg(member.display_name order by member.handle) as names,
+        coalesce(
+          json_agg(member.display_name order by member.handle),
+          '[]'::json
+        ) as names,
         count(*)::integer as member_count,
         bool_and(context_audience.user_id = context_object.author_user_id) as only_author
       from context_audiences as context_audience

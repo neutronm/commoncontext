@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   bucketContext,
   getAuthorizedObjects,
+  getObjectForReview,
   getWorkspaceParticipants,
   resolveCaller,
   respondToObject,
@@ -64,7 +65,7 @@ describe('domain authorization and bucketing', () => {
     const databaseUrl = requiredEnv('DATABASE_URL');
     const fredToken = requiredEnv('DEMO_TOKEN_FRED');
     const saraToken = requiredEnv('DEMO_TOKEN_SARA');
-    sql = postgres(databaseUrl, { max: 1 });
+    sql = postgres(databaseUrl, { max: 1, fetch_types: false });
 
     const initPath = fileURLToPath(
       new URL('../../../supabase/migrations/0001_init.sql', import.meta.url),
@@ -104,6 +105,25 @@ describe('domain authorization and bucketing', () => {
   it('returns exactly 11 authorized objects for Fred and Sara', async () => {
     await expect(getAuthorizedObjects(sql, fred)).resolves.toHaveLength(11);
     await expect(getAuthorizedObjects(sql, sara)).resolves.toHaveLength(11);
+  });
+
+  it('returns ordered audienceNames arrays when type fetching is disabled', async () => {
+    const sharedObject = saraObjects.find((object) => object.text === texts.S1);
+    expect(sharedObject?.audienceNames).toEqual(['Fred', 'Sara']);
+    expect(
+      saraObjects.find((object) => object.text === texts.P2)?.audienceNames,
+    ).toEqual(['Sara']);
+    expect(
+      saraObjects.every((object) => Array.isArray(object.audienceNames)),
+    ).toBe(true);
+
+    const reviewObject = await getObjectForReview(
+      sql,
+      sharedObject!.id,
+      sara,
+    );
+    expect(reviewObject.audienceNames).toEqual(['Fred', 'Sara']);
+    expect(Array.isArray(reviewObject.audienceNames)).toBe(true);
   });
 
   it('throws when respondToObject caller is outside the audience', async () => {
