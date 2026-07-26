@@ -97,10 +97,14 @@ Then in `.env.local`:
 
 ```
 DATABASE_URL=<session-mode pooler string>
-WRANGLER_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=<session-mode pooler string>
+CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=<session-mode pooler string>
 ```
 
+The `WRANGLER_HYPERDRIVE_LOCAL_CONNECTION_STRING_*` spelling still resolves, but wrangler 4.114 checks it only as a fallback and warns on every dev and deploy. Use the `CLOUDFLARE_` prefix so three agents don't inherit a deprecation warning they'll each waste time investigating.
+
 Confirm `.env.local` is gitignored, and commit a `.env.example` with the key names and empty values.
+
+`create-next-app` ignores `/.next/` but not `/.open-next/`. Add it now — otherwise the first `npm run deploy` leaves several MB of bundled Worker output staged into the scaffold commit.
 
 **Three roles, two strings — worth writing on a sticky note:** Hyperdrive config → direct. Local tooling → session pooler. Deployed Workers → neither, they get the binding.
 
@@ -124,8 +128,8 @@ You own this file; agents must not edit it.
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "preview": "opennextjs-cloudflare build && dotenv -e .env.local -- opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && dotenv -e .env.local -- opennextjs-cloudflare deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts",
     "db:reset": "dotenv -e .env.local -- sh -c 'psql $DATABASE_URL -f ./supabase/migrations/0001_init.sql'",
     "db:seed": "dotenv -e .env.local -- sh -c 'psql $DATABASE_URL -v fred_token=\"$DEMO_TOKEN_FRED\" -v sara_token=\"$DEMO_TOKEN_SARA\" -f ./supabase/migrations/0002_seed.sql'",
@@ -133,6 +137,8 @@ You own this file; agents must not edit it.
   }
 }
 ```
+
+**`preview` and `deploy` must go through `dotenv`, not just the `db:*` scripts.** Both commands start a local platform proxy to read your bindings, and that proxy throws outright if no Hyperdrive local connection string is set. `next dev` loads `.env.local` on its own; the `opennextjs-cloudflare` CLI does not, because it runs outside Next. Without the `dotenv` prefix, `npm run deploy` fails *after* a full successful build, with an error about local Postgres that has nothing to do with what you're actually doing.
 
 The `-v` flags are how the tokens reach the seed: a plain SQL file cannot read `.env.local`, so `psql` passes them in as variables and the seed references them as `:'fred_token'` / `:'sara_token'`. This is also why the tokens must be in `.env.local` as well as in the Worker vars.
 
@@ -191,6 +197,8 @@ Copy it from doc 04 onto `main` and push before dispatching. It's the contract a
 - [ ] `.env.local` uses the **session-mode pooler** string, not the direct one
 - [ ] `next.config.ts` calls `initOpenNextCloudflareForDev()`
 - [ ] Same Hyperdrive `id` in both `wrangler.jsonc` files
+- [ ] `PUBLIC_APP_URL` in `mcp-worker/wrangler.jsonc` set to the deployed web Worker URL
+- [ ] `/.open-next/` gitignored, and the scaffold commit contains no build output
 - [ ] Three branches pushed, all pointing at the scaffold commit
 - [ ] `src/domain/types.ts` on `main`
 - [ ] Spec docs in `docs/`

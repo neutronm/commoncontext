@@ -64,7 +64,9 @@ Do not "correct" `DATABASE_URL` back to the direct string. Hyperdrive keeps the 
 
 Vars: `DEMO_TOKEN_FRED`, `DEMO_TOKEN_SARA` on the `mcp` Worker; `PUBLIC_APP_URL` on the `mcp` Worker pointing at the deployed `web` Worker.
 
-For local development, wrangler reads `WRANGLER_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` from `.env.local` and connects directly, skipping Hyperdrive. Because that connection is opened by the dev machine rather than by Cloudflare, it has the same IPv6 problem as `DATABASE_URL` — set it to the **session-mode pooler string as well**.
+For local development, wrangler reads `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` from `.env.local` and connects directly, skipping Hyperdrive. Because that connection is opened by the dev machine rather than by Cloudflare, it has the same IPv6 problem as `DATABASE_URL` — set it to the **session-mode pooler string as well**.
+
+The `WRANGLER_`-prefixed spelling of that variable also works but is deprecated as of wrangler 4.114: it is checked only as a fallback and logs a warning on every dev and deploy. Use the `CLOUDFLARE_` name.
 
 The direct string is used in exactly one place: the Hyperdrive config itself, where Cloudflare's network opens the connection and IPv6 is not a constraint.
 
