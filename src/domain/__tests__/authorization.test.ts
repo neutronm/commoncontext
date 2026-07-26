@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   bucketContext,
+  createProposal,
   getAuthorizedObjects,
   getObjectForReview,
   getWorkspaceParticipants,
@@ -58,6 +59,13 @@ function bucketTexts(
   >,
 ): string[] {
   return bundle[bucket].map((object) => object.text).sort();
+}
+
+function expectCanonicalIsoTimestamp(value: string): void {
+  expect(value).toMatch(
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+  );
+  expect(new Date(value).toISOString()).toBe(value);
 }
 
 describe('domain authorization and bucketing', () => {
@@ -126,6 +134,61 @@ describe('domain authorization and bucketing', () => {
     expect(Array.isArray(reviewObject.audienceNames)).toBe(true);
   });
 
+  it('returns canonical ISO timestamps for objects and responses', async () => {
+    const objects = await getAuthorizedObjects(sql, sara);
+    for (const object of objects) {
+      expectCanonicalIsoTimestamp(object.createdAt);
+      for (const response of object.responses) {
+        expectCanonicalIsoTimestamp(response.createdAt);
+      }
+    }
+    expect(objects.flatMap((object) => object.responses).length).toBeGreaterThan(
+      0,
+    );
+  });
+
+  it('routes Fred proposals to Sara for review', async () => {
+    const proposal = await createProposal(sql, {
+      caller: fred,
+      text: 'We agreed to launch on August 15.',
+      type: 'decision',
+      epistemicStatus: 'proposal',
+    });
+
+    try {
+      expect(proposal).toEqual({
+        id: expect.any(String),
+        reviewPath: `/review/${proposal.id}?as=sara`,
+      });
+    } finally {
+      await sql`
+        delete from context_objects
+        where id = ${proposal.id}::uuid
+      `;
+    }
+  });
+
+  it('routes Sara proposals to Fred for review', async () => {
+    const proposal = await createProposal(sql, {
+      caller: sara,
+      text: 'We agreed to launch on August 15.',
+      type: 'decision',
+      epistemicStatus: 'proposal',
+    });
+
+    try {
+      expect(proposal).toEqual({
+        id: expect.any(String),
+        reviewPath: `/review/${proposal.id}?as=fred`,
+      });
+    } finally {
+      await sql`
+        delete from context_objects
+        where id = ${proposal.id}::uuid
+      `;
+    }
+  });
+
   it('throws when respondToObject caller is outside the audience', async () => {
     const target = saraObjects.find((object) => object.text === texts.S1);
     expect(target).toBeDefined();
@@ -177,7 +240,7 @@ describe('domain authorization and bucketing', () => {
       ...bundle.sources,
     ];
     expect(bucketed).toHaveLength(10);
-    expect(new Set(bucketed.map((object) => object.id))).toHaveLength(10);
+    expect(new Set(bucketed.map((object) => object.id)).size).toBe(10);
     expect(bucketed.map((object) => object.text)).not.toContain(texts.S2);
   });
 });

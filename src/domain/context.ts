@@ -66,7 +66,10 @@ async function selectAuthorizedObjects(
       context_object.source_reference as "sourceReference",
       superseded_object.text as "supersedesText",
       responses.items as responses,
-      context_object.created_at::text as "createdAt"
+      to_char(
+        context_object.created_at at time zone 'UTC',
+        'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+      ) as "createdAt"
     from context_objects as context_object
     join visible_object_ids
       on visible_object_ids.id = context_object.id
@@ -96,7 +99,10 @@ async function selectAuthorizedObjects(
             'displayName', respondent.display_name,
             'stance', participant_response.stance,
             'responseText', participant_response.response_text,
-            'createdAt', participant_response.created_at
+            'createdAt', to_char(
+              participant_response.created_at at time zone 'UTC',
+              'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+            )
           )
           order by participant_response.created_at, respondent.handle
         ) filter (where participant_response.id is not null),
@@ -242,8 +248,19 @@ export async function createProposal(
     epistemicStatus: EpistemicStatus;
   },
 ): Promise<{ id: string; reviewPath: string }> {
-  const [proposal] = await sql<{ id: string }[]>`
-    with proposal as (
+  const [proposal] = await sql<{ id: string; reviewerHandle: string }[]>`
+    with reviewer as (
+      select app_user.handle
+      from workspace_members as membership
+      join users as app_user
+        on app_user.id = membership.user_id
+      where membership.workspace_id = ${args.caller.workspaceId}::uuid
+        and membership.role = 'founder'
+        and membership.user_id <> ${args.caller.userId}::uuid
+      order by app_user.handle
+      limit 1
+    ),
+    proposal as (
       insert into context_objects (
         workspace_id,
         author_user_id,
@@ -254,7 +271,7 @@ export async function createProposal(
         lifecycle_status,
         origin
       )
-      values (
+      select
         ${args.caller.workspaceId}::uuid,
         ${args.caller.userId}::uuid,
         ${args.caller.userId}::uuid,
@@ -263,7 +280,7 @@ export async function createProposal(
         ${args.epistemicStatus},
         'pending',
         'assistant'
-      )
+      from reviewer
       returning id
     ),
     audience as (
@@ -274,14 +291,17 @@ export async function createProposal(
         on membership.workspace_id = ${args.caller.workspaceId}::uuid
        and membership.role = 'founder'
     )
-    select proposal.id::text as id
+    select
+      proposal.id::text as id,
+      reviewer.handle as "reviewerHandle"
     from proposal
+    cross join reviewer
   `;
 
   if (!proposal) throw new Error('Unable to create proposal');
   return {
     id: proposal.id,
-    reviewPath: `/review/${proposal.id}?as=sara`,
+    reviewPath: `/review/${proposal.id}?as=${encodeURIComponent(proposal.reviewerHandle)}`,
   };
 }
 
