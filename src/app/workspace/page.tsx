@@ -1,8 +1,12 @@
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+import postgres from "postgres";
+
 import { ContextCard } from "@/components/context-card";
 import {
-  mockParticipants,
-  mockWorkspaceObjects,
-} from "@/components/mock-data";
+  getAuthorizedObjects,
+  getWorkspaceParticipants,
+  resolveWebViewer,
+} from "@/domain/context";
 import { ViewerSwitcher } from "@/components/viewer-switcher";
 
 export const dynamic = "force-dynamic";
@@ -11,15 +15,34 @@ type WorkspacePageProps = {
   searchParams: Promise<{ as?: string | string[] }>;
 };
 
-function resolveViewer(value: string | string[] | undefined) {
-  return value === "sara" ? ("sara" as const) : ("fred" as const);
+type WebCloudflareEnv = CloudflareEnv & {
+  HYPERDRIVE: { connectionString: string };
+};
+
+function searchParamValue(value: string | string[] | undefined) {
+  return typeof value === "string" ? value : undefined;
 }
 
 export default async function WorkspacePage({
   searchParams,
 }: WorkspacePageProps) {
-  const viewer = resolveViewer((await searchParams).as);
-  const objects = mockWorkspaceObjects[viewer];
+  const sql = postgres(
+    (getCloudflareContext().env as WebCloudflareEnv).HYPERDRIVE
+      .connectionString,
+    {
+      max: 5,
+      fetch_types: false,
+    },
+  );
+  const caller = await resolveWebViewer(
+    sql,
+    searchParamValue((await searchParams).as),
+  );
+  const [objects, participants] = await Promise.all([
+    getAuthorizedObjects(sql, caller),
+    getWorkspaceParticipants(sql, caller.workspaceId),
+  ]);
+  const viewer = caller.displayName === "Sara" ? "sara" : "fred";
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-[720px] px-5 py-10 sm:px-7 sm:py-14">
@@ -44,7 +67,7 @@ export default async function WorkspacePage({
             <ContextCard
               key={object.id}
               object={object}
-              participants={mockParticipants}
+              participants={participants}
             />
           ))}
         </div>
