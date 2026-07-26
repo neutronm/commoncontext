@@ -119,6 +119,7 @@ export default async function ReviewPage({
   return (
     <main className="mx-auto min-h-screen w-full max-w-[720px] px-5 py-10 sm:px-7 sm:py-14">
       <ReviewPanel
+        key={`${proposal.id}:${viewer}`}
         participants={participants}
         proposal={proposal}
         recordResponseAction={recordResponseAction}
