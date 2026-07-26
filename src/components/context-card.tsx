@@ -1,8 +1,11 @@
+import Link from "next/link";
+
 import type { ContextObjectView } from "@/domain/types";
 
 import { StanceStrip } from "@/components/stance-strip";
 
 type ContextCardProps = {
+  href?: string;
   object: ContextObjectView;
   participants: string[];
 };
@@ -85,15 +88,23 @@ const semanticGutterClass: Record<ContextSemanticState, string> = {
   superseded: "bg-ink-muted",
 };
 
-export function ContextCard({ object, participants }: ContextCardProps) {
+export function ContextCard({
+  href,
+  object,
+  participants,
+}: ContextCardProps) {
   const isPrivate = object.visibility === "private";
   const isSuperseded = object.lifecycleStatus === "superseded";
   const lifecycle = object.lifecycleStatus.replaceAll("_", " ");
 
-  return (
+  const card = (
     <article
       className={`relative overflow-hidden bg-card ${
         isPrivate ? "border border-dashed border-private" : "border border-rule"
+      } ${
+        href
+          ? "group-hover:outline group-hover:outline-1 group-hover:outline-offset-2 group-hover:outline-ink"
+          : ""
       }`}
       data-context-id={object.id}
       data-private={isPrivate || undefined}
@@ -151,9 +162,29 @@ export function ContextCard({ object, participants }: ContextCardProps) {
             )}
           </div>
         )}
+
+        {href && (
+          <p className="mt-5 font-mono text-[11px] leading-4 font-semibold tracking-[0.06em] text-ink uppercase">
+            View details <span aria-hidden="true">→</span>
+          </p>
+        )}
       </div>
 
       <StanceStrip object={object} participants={participants} />
     </article>
+  );
+
+  if (!href) {
+    return card;
+  }
+
+  return (
+    <Link
+      aria-label={`View details for ${object.type.replaceAll("_", " ")}: ${object.text}`}
+      className="group block focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-ink"
+      href={href}
+    >
+      {card}
+    </Link>
   );
 }

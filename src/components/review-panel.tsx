@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 
 import type { ContextObjectView, Stance } from "@/domain/types";
 import {
@@ -8,6 +9,12 @@ import {
   contextSemanticState,
   type ContextSemanticState,
 } from "@/components/context-card";
+import { ContextDetails } from "@/components/context-details";
+import {
+  canViewerRespondToObject,
+  viewerDisplayName,
+  type WebViewer,
+} from "@/lib/context-view";
 
 type ReviewPanelProps = {
   participants: string[];
@@ -15,7 +22,7 @@ type ReviewPanelProps = {
   recordResponseAction: (
     formData: FormData,
   ) => Promise<ContextObjectView>;
-  viewer: "fred" | "sara";
+  viewer: WebViewer;
 };
 
 const options: Array<{ label: string; value: Stance }> = [
@@ -39,50 +46,35 @@ const statusTextClass: Record<ContextSemanticState, string> = {
   superseded: "text-ink-muted",
 };
 
-function originCopy(object: ContextObjectView) {
-  if (object.origin === "assistant") {
-    return `through ${object.authorName}'s assistant`;
-  }
-
-  if (object.origin === "web") {
-    return "on the web";
-  }
-
-  return "from the shared record";
-}
-
 function metadataValue(value: string) {
   return value.replaceAll("_", " ");
 }
 
-function reviewMetadataLabel(object: ContextObjectView) {
-  const sharedWith = object.audienceNames.filter(
-    (name) => name !== object.authorName,
-  );
-  const audience =
-    sharedWith.length > 0
-      ? `shared with ${sharedWith.join(", ")}`
-      : `private to ${object.authorName}`;
-
-  return `${metadataValue(object.type)} · proposed by ${
-    object.authorName
-  } · ${audience} · epistemic status ${metadataValue(
-    object.epistemicStatus,
-  )}`;
+function titleLabel(value: string) {
+  const label = metadataValue(value);
+  return `${label.charAt(0).toUpperCase()}${label.slice(1)}`;
 }
 
-const timestampFormatter = new Intl.DateTimeFormat("en-US", {
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-  month: "short",
-  timeZone: "UTC",
-  timeZoneName: "short",
-  year: "numeric",
-});
+const semanticStatusLabel: Record<ContextSemanticState, string> = {
+  agreed: "Agreed",
+  disputed: "Disputed",
+  informational: "Acknowledged",
+  pending: "Pending",
+  superseded: "Superseded",
+};
 
-function createdAtLabel(createdAt: string) {
-  return timestampFormatter.format(new Date(createdAt));
+function awaitingResponseLabel(object: ContextObjectView) {
+  const awaitingParticipant = object.audienceNames.find(
+    (participant) =>
+      participant !== object.authorName &&
+      !object.responses.some(
+        (response) => response.displayName === participant,
+      ),
+  );
+
+  return awaitingParticipant
+    ? `Awaiting ${awaitingParticipant}'s response`
+    : "Awaiting response";
 }
 
 export function ReviewPanel({
@@ -96,25 +88,36 @@ export function ReviewPanel({
   const [isRecording, setIsRecording] = useState(false);
   const [recordedResult, setRecordedResult] = useState<{
     object: ContextObjectView;
-    viewer: "fred" | "sara";
+    viewer: WebViewer;
   } | null>(null);
-  const viewerName = viewer === "sara" ? "Sara" : "Fred";
-  const persistedViewerResponse = proposal.responses.some(
-    (response) => response.displayName === viewerName,
-  );
-  const recordedObject = persistedViewerResponse
-    ? proposal
-    : recordedResult?.viewer === viewer &&
-        recordedResult.object.id === proposal.id
+  const viewerName = viewerDisplayName(viewer);
+  const recordedObject =
+    recordedResult?.viewer === viewer &&
+    recordedResult.object.id === proposal.id
       ? recordedResult.object
       : null;
-  const statusObject = recordedObject ?? proposal;
-  const statusState = contextSemanticState(statusObject, participants);
+  const currentObject = recordedObject ?? proposal;
+  const canRespond = canViewerRespondToObject(currentObject, viewerName);
+  const statusState = contextSemanticState(currentObject, participants);
+  const statusClass =
+    currentObject.visibility === "private"
+      ? "text-private"
+      : statusTextClass[statusState];
+  const statusLabel = recordedObject
+    ? "Response recorded"
+    : canRespond
+      ? "Pending your response"
+      : currentObject.lifecycleStatus === "pending" &&
+          currentObject.authorName === viewerName
+        ? awaitingResponseLabel(currentObject)
+        : currentObject.visibility === "private"
+          ? "Private record"
+          : semanticStatusLabel[statusState];
 
   async function recordResponse(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!stance || isRecording) {
+    if (!stance || isRecording || !canRespond) {
       return;
     }
 
@@ -131,28 +134,38 @@ export function ReviewPanel({
 
   return (
     <>
+      <Link
+        className="inline-flex min-h-10 items-center font-mono text-[11px] font-semibold tracking-[0.06em] text-ink uppercase underline decoration-rule underline-offset-4 hover:decoration-ink"
+        href={`/workspace?as=${viewer}`}
+      >
+        <span aria-hidden="true">←</span>&nbsp; Back to workspace
+      </Link>
+
       <header>
-        <h1 className="text-[28px] leading-tight font-semibold text-ink">
-          {proposal.authorName} proposed a{" "}
-          {proposal.type.replaceAll("_", " ")}
+        <h1 className="mt-5 text-[28px] leading-tight font-semibold text-ink">
+          {canRespond
+            ? `${currentObject.authorName} proposed a ${metadataValue(
+                currentObject.type,
+              )}`
+            : `${titleLabel(currentObject.type)} details`}
         </h1>
         <p
           aria-live="polite"
-          className={`mt-2 font-mono text-[11px] tracking-[0.06em] uppercase ${statusTextClass[statusState]}`}
+          className={`mt-2 font-mono text-[11px] tracking-[0.06em] uppercase ${statusClass}`}
           role={recordedObject ? "status" : undefined}
         >
-          {recordedObject ? "Response recorded" : "Pending your response"}
+          {statusLabel}
         </p>
         <div aria-hidden="true" className="mt-6 border-t border-rule" />
       </header>
 
       <div className="mt-7">
-        {recordedObject ? (
-          <ContextCard object={recordedObject} participants={participants} />
-        ) : (
+        <ContextCard object={currentObject} participants={participants} />
+
+        {canRespond && (
           <ReviewForm
             perspective={perspective}
-            proposal={proposal}
+            proposal={currentObject}
             recordResponse={recordResponse}
             isRecording={isRecording}
             setPerspective={setPerspective}
@@ -161,6 +174,8 @@ export function ReviewPanel({
             viewer={viewer}
           />
         )}
+
+        <ContextDetails object={currentObject} />
       </div>
     </>
   );
@@ -174,7 +189,7 @@ type ReviewFormProps = {
   setPerspective: (value: string) => void;
   setStance: (stance: Stance) => void;
   stance: Stance | null;
-  viewer: "fred" | "sara";
+  viewer: WebViewer;
 };
 
 function ReviewForm({
@@ -188,22 +203,7 @@ function ReviewForm({
   viewer,
 }: ReviewFormProps) {
   return (
-    <div>
-      <article className="border border-rule bg-card px-5 py-5">
-        <p className="font-mono text-[11px] leading-4 tracking-[0.06em] text-ink-muted uppercase">
-          {reviewMetadataLabel(proposal)}
-        </p>
-        <p className="mt-5 text-[17px] leading-[1.45] text-ink">
-          {proposal.text}
-        </p>
-        <p className="mt-5 font-mono text-[11px] leading-4 tracking-[0.06em] text-ink-muted uppercase">
-          Proposed {originCopy(proposal)} ·{" "}
-          <time dateTime={proposal.createdAt}>
-            {createdAtLabel(proposal.createdAt)}
-          </time>
-        </p>
-      </article>
-
+    <div className="mt-7">
       <p className="mt-7 text-[17px] leading-7 text-ink">
         Nothing becomes shared context until you respond.
       </p>
@@ -255,9 +255,10 @@ function ReviewForm({
         />
 
         <p className="mt-6 text-[16px] leading-7 text-ink">
-          Your response is recorded alongside Fred&apos;s statement.
+          Your response is recorded alongside {proposal.authorName}&apos;s
+          statement.
           <br />
-          His wording is never edited or removed.
+          {proposal.authorName}&apos;s wording is never edited or removed.
         </p>
 
         <div className="mt-7 flex justify-end">

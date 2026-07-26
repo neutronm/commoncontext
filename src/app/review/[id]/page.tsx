@@ -10,6 +10,10 @@ import {
   resolveWebViewer,
   respondToObject,
 } from "@/domain/context";
+import {
+  canViewerRespondToObject,
+  isContextObjectId,
+} from "@/lib/context-view";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +41,7 @@ async function recordResponseAction(
 
   const objectId = formData.get("objectId");
 
-  if (typeof objectId !== "string") {
+  if (typeof objectId !== "string" || !isContextObjectId(objectId)) {
     throw new Error("Unknown proposal.");
   }
 
@@ -60,6 +64,11 @@ async function recordResponseAction(
     sql,
     typeof viewer === "string" ? viewer : undefined,
   );
+  const currentObject = await getObjectForReview(sql, objectId, caller);
+
+  if (!canViewerRespondToObject(currentObject, caller.displayName)) {
+    throw new Error("This record is not awaiting your response.");
+  }
 
   await respondToObject(sql, {
     caller,
@@ -79,6 +88,11 @@ export default async function ReviewPage({
   searchParams,
 }: ReviewPageProps) {
   const { id } = await params;
+
+  if (!isContextObjectId(id)) {
+    notFound();
+  }
+
   const sql = postgres(
     getCloudflareContext().env.HYPERDRIVE.connectionString,
     {
