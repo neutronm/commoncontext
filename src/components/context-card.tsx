@@ -7,9 +7,19 @@ type ContextCardProps = {
   participants: string[];
 };
 
-function semanticState(object: ContextObjectView, participants: string[]) {
+export type ContextSemanticState =
+  | "agreed"
+  | "disputed"
+  | "informational"
+  | "pending"
+  | "superseded";
+
+export function contextSemanticState(
+  object: ContextObjectView,
+  participants: string[],
+): ContextSemanticState {
   if (object.lifecycleStatus === "superseded") {
-    return "bg-rule";
+    return "superseded";
   }
 
   if (
@@ -18,17 +28,24 @@ function semanticState(object: ContextObjectView, participants: string[]) {
         response.stance === "disputed" || response.stance === "rejected",
     )
   ) {
-    return "bg-disputed";
+    return "disputed";
+  }
+
+  if (object.lifecycleStatus === "pending") {
+    return "pending";
   }
 
   if (
-    participantsAccepted(object, participants) &&
-    object.lifecycleStatus !== "pending"
+    object.responses.some((response) => response.stance === "acknowledged")
   ) {
-    return "bg-agreed";
+    return "informational";
   }
 
-  return "bg-pending";
+  if (participantsAccepted(object, participants)) {
+    return "agreed";
+  }
+
+  return "pending";
 }
 
 function participantsAccepted(
@@ -60,9 +77,18 @@ function metadataLabel(object: ContextObjectView) {
   return `${type} · authored by ${object.authorName} · owned by ${object.ownerName} · shared with ${sharedWith.join(", ")}`;
 }
 
+const semanticGutterClass: Record<ContextSemanticState, string> = {
+  agreed: "bg-agreed",
+  disputed: "bg-disputed",
+  informational: "bg-ink-muted",
+  pending: "bg-pending",
+  superseded: "bg-ink-muted",
+};
+
 export function ContextCard({ object, participants }: ContextCardProps) {
   const isPrivate = object.visibility === "private";
   const isSuperseded = object.lifecycleStatus === "superseded";
+  const lifecycle = object.lifecycleStatus.replaceAll("_", " ");
 
   return (
     <article
@@ -75,13 +101,17 @@ export function ContextCard({ object, participants }: ContextCardProps) {
       {!isPrivate && (
         <span
           aria-hidden="true"
-          className={`absolute inset-y-0 left-0 w-[3px] ${semanticState(object, participants)}`}
+          className={`absolute inset-y-0 left-0 w-[3px] ${
+            semanticGutterClass[contextSemanticState(object, participants)]
+          }`}
         />
       )}
 
       <div className="px-5 pt-5 pb-4">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-2 font-mono text-[11px] leading-4 tracking-[0.06em] text-ink-muted uppercase">
-          <span>{metadataLabel(object)}</span>
+          <span>
+            {metadataLabel(object)} · lifecycle {lifecycle}
+          </span>
           {isPrivate && (
             <span className="border border-private px-2 py-0.5 text-private">
               Private to you
@@ -91,7 +121,7 @@ export function ContextCard({ object, participants }: ContextCardProps) {
 
         <p
           className={`mt-4 max-w-[62ch] text-[17px] leading-[1.45] text-ink ${
-            isSuperseded ? "opacity-45 line-through" : ""
+            isSuperseded ? "opacity-60 line-through" : ""
           }`}
         >
           {object.text}

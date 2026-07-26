@@ -3,7 +3,11 @@
 import { useState, type FormEvent } from "react";
 
 import type { ContextObjectView, Stance } from "@/domain/types";
-import { ContextCard } from "@/components/context-card";
+import {
+  ContextCard,
+  contextSemanticState,
+  type ContextSemanticState,
+} from "@/components/context-card";
 
 type ReviewPanelProps = {
   participants: string[];
@@ -27,6 +31,14 @@ const selectedStyles: Record<Stance, string> = {
   rejected: "border-disputed bg-disputed text-card",
 };
 
+const statusTextClass: Record<ContextSemanticState, string> = {
+  agreed: "text-agreed",
+  disputed: "text-disputed",
+  informational: "text-ink-muted",
+  pending: "text-pending",
+  superseded: "text-ink-muted",
+};
+
 function originCopy(object: ContextObjectView) {
   if (object.origin === "assistant") {
     return `through ${object.authorName}'s assistant`;
@@ -39,6 +51,40 @@ function originCopy(object: ContextObjectView) {
   return "from the shared record";
 }
 
+function metadataValue(value: string) {
+  return value.replaceAll("_", " ");
+}
+
+function reviewMetadataLabel(object: ContextObjectView) {
+  const sharedWith = object.audienceNames.filter(
+    (name) => name !== object.authorName,
+  );
+  const audience =
+    sharedWith.length > 0
+      ? `shared with ${sharedWith.join(", ")}`
+      : `private to ${object.authorName}`;
+
+  return `${metadataValue(object.type)} · proposed by ${
+    object.authorName
+  } · ${audience} · epistemic status ${metadataValue(
+    object.epistemicStatus,
+  )}`;
+}
+
+const timestampFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  month: "short",
+  timeZone: "UTC",
+  timeZoneName: "short",
+  year: "numeric",
+});
+
+function createdAtLabel(createdAt: string) {
+  return timestampFormatter.format(new Date(createdAt));
+}
+
 export function ReviewPanel({
   participants,
   proposal,
@@ -48,8 +94,22 @@ export function ReviewPanel({
   const [stance, setStance] = useState<Stance | null>(null);
   const [perspective, setPerspective] = useState("");
   const [isRecording, setIsRecording] = useState(false);
-  const [recordedObject, setRecordedObject] =
-    useState<ContextObjectView | null>(null);
+  const [recordedResult, setRecordedResult] = useState<{
+    object: ContextObjectView;
+    viewer: "fred" | "sara";
+  } | null>(null);
+  const viewerName = viewer === "sara" ? "Sara" : "Fred";
+  const persistedViewerResponse = proposal.responses.some(
+    (response) => response.displayName === viewerName,
+  );
+  const recordedObject = persistedViewerResponse
+    ? proposal
+    : recordedResult?.viewer === viewer &&
+        recordedResult.object.id === proposal.id
+      ? recordedResult.object
+      : null;
+  const statusObject = recordedObject ?? proposal;
+  const statusState = contextSemanticState(statusObject, participants);
 
   async function recordResponse(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -63,7 +123,7 @@ export function ReviewPanel({
     try {
       const formData = new FormData(event.currentTarget);
       const nextObject = await recordResponseAction(formData);
-      setRecordedObject(nextObject);
+      setRecordedResult({ object: nextObject, viewer });
     } finally {
       setIsRecording(false);
     }
@@ -78,9 +138,7 @@ export function ReviewPanel({
         </h1>
         <p
           aria-live="polite"
-          className={`mt-2 font-mono text-[11px] tracking-[0.06em] uppercase ${
-            recordedObject ? "text-agreed" : "text-pending"
-          }`}
+          className={`mt-2 font-mono text-[11px] tracking-[0.06em] uppercase ${statusTextClass[statusState]}`}
           role={recordedObject ? "status" : undefined}
         >
           {recordedObject ? "Response recorded" : "Pending your response"}
@@ -133,19 +191,21 @@ function ReviewForm({
     <div>
       <article className="border border-rule bg-card px-5 py-5">
         <p className="font-mono text-[11px] leading-4 tracking-[0.06em] text-ink-muted uppercase">
-          {proposal.type.replaceAll("_", " ")} · proposed by{" "}
-          {proposal.authorName} · pending
+          {reviewMetadataLabel(proposal)}
         </p>
         <p className="mt-5 text-[17px] leading-[1.45] text-ink">
           {proposal.text}
         </p>
         <p className="mt-5 font-mono text-[11px] leading-4 tracking-[0.06em] text-ink-muted uppercase">
-          Proposed {originCopy(proposal)} · 2 minutes ago
+          Proposed {originCopy(proposal)} ·{" "}
+          <time dateTime={proposal.createdAt}>
+            {createdAtLabel(proposal.createdAt)}
+          </time>
         </p>
       </article>
 
       <p className="mt-7 text-[17px] leading-7 text-ink">
-        Nothing is shared until you respond.
+        Nothing becomes shared context until you respond.
       </p>
 
       <form className="mt-6" method="post" onSubmit={recordResponse}>
