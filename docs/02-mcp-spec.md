@@ -158,7 +158,7 @@ No audience parameter — the demo has one workspace and both founders are alway
   "id": "…",
   "review_url": "https://<web-worker>.workers.dev/review/<id>?as=sara",
   "shared_with": ["Sara"],
-  "message": "Created as a pending proposal. Sara can see it for review but has not agreed to it. It is not canonical shared context until she responds."
+  "message": "Created as a pending proposal. Sara can see it for review but has not agreed to it. It is not canonical shared context until Sara responds."
 }
 ```
 
