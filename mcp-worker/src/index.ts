@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createMcpHandler } from "agents/mcp";
 import postgres from "postgres";
 
-import * as domain from "./stub-domain";
+import * as domain from "../../src/domain/context";
 import { registerGetSharedContextTool } from "./tools/get-shared-context";
 import { registerProposeSharedContextTool } from "./tools/propose-shared-context";
 import { registerRespondToContextTool } from "./tools/respond-to-context";
