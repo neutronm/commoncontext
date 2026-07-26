@@ -27,11 +27,11 @@ The reference world is version control and chain-of-custody documents: attribute
 | `ink-muted` | `#5A6472` | metadata |
 | `rule` | `#E2E5E1` | borders, dividers |
 | `agreed` | `#0F6B5C` | every participant accepted |
-| `pending` | `#B4690E` | proposed, awaiting response |
+| `pending` | `#A45C0B` | proposed, awaiting response |
 | `disputed` | `#A63D2F` | disputed or rejected |
 | `private` | `#5A6472` | visible only to author |
 
-The token names and semantic meanings are fixed; the hex values above are targets pending Agent C's contrast verification. The 4.5:1 requirement below is authoritative, so adjust semantic token values as necessary while preserving their meanings.
+The token names, semantic meanings, and contrast-verified values above are fixed. `pending` measures 5.10:1 on `card` and 4.75:1 on `paper`; the 4.5:1 requirement below remains authoritative.
 
 Do not add a brand accent. Every color on screen must mean something; a decorative sixth color would break the one rule the design has.
 
@@ -114,7 +114,7 @@ Route: `/workspace`
 
 > This is why the demo shows both timelines back to back. Fred's screen has P1 as a dashed card; Sara's has nothing where P1 would be, while her own P2 is dashed elsewhere. The absence of the other founder's card is the proof, and it only reads if the viewer's own private card looks visibly different when it *is* there.
 
-**Superseded objects:** claim text at reduced opacity with a strikethrough, gutter in `rule` grey. The 4.5:1 requirement remains authoritative; adjust the semantic token and/or opacity as necessary rather than treating a specific opacity as fixed. Keep superseded objects in the stream — removing them would defeat the point.
+**Superseded objects:** claim text at 60% opacity with a strikethrough, producing effective `#737476` on `card` at 4.68:1 contrast; gutter in `ink-muted` grey. Keep them in the stream — removing them would defeat the point.
 
 **"Viewing as" switcher:** top-right, switches between Fred and Sara by rewriting the `?as=` query parameter (see doc 04 — there is no login). Backstop for the demo: if a live MCP session misbehaves mid-take, you can still show the authorization boundary by flipping this control. Style it quietly — it must not look like a core feature.
 

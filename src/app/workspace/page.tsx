@@ -15,10 +15,6 @@ type WorkspacePageProps = {
   searchParams: Promise<{ as?: string | string[] }>;
 };
 
-type WebCloudflareEnv = CloudflareEnv & {
-  HYPERDRIVE: { connectionString: string };
-};
-
 function searchParamValue(value: string | string[] | undefined) {
   return typeof value === "string" ? value : undefined;
 }
@@ -27,8 +23,7 @@ export default async function WorkspacePage({
   searchParams,
 }: WorkspacePageProps) {
   const sql = postgres(
-    (getCloudflareContext().env as WebCloudflareEnv).HYPERDRIVE
-      .connectionString,
+    getCloudflareContext().env.HYPERDRIVE.connectionString,
     {
       max: 5,
       fetch_types: false,
