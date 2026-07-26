@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:mcp": "npm --prefix mcp-worker run dev",
     "build": "next build",
     "start": "next start",
     "preview": "opennextjs-cloudflare build && dotenv -e .env.local -- opennextjs-cloudflare preview",
