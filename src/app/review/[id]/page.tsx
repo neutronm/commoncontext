@@ -1,8 +1,15 @@
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { notFound } from "next/navigation";
+import postgres from "postgres";
 
 import type { ContextObjectView, Stance } from "@/domain/types";
-import { mockParticipants, mockPendingProposal } from "@/components/mock-data";
 import { ReviewPanel } from "@/components/review-panel";
+import {
+  getObjectForReview,
+  getWorkspaceParticipants,
+  resolveWebViewer,
+  respondToObject,
+} from "@/domain/context";
 
 export const dynamic = "force-dynamic";
 
@@ -11,8 +18,12 @@ type ReviewPageProps = {
   searchParams: Promise<{ as?: string | string[] }>;
 };
 
-function resolveViewer(value: string | string[] | undefined) {
-  return value === "sara" ? ("sara" as const) : ("fred" as const);
+type WebCloudflareEnv = CloudflareEnv & {
+  HYPERDRIVE: { connectionString: string };
+};
+
+function searchParamValue(value: string | string[] | undefined) {
+  return typeof value === "string" ? value : undefined;
 }
 
 function isResponseStance(value: FormDataEntryValue | null): value is Stance {
@@ -23,12 +34,14 @@ function isResponseStance(value: FormDataEntryValue | null): value is Stance {
   );
 }
 
-async function recordMockResponseAction(
+async function recordResponseAction(
   formData: FormData,
 ): Promise<ContextObjectView> {
   "use server";
 
-  if (formData.get("objectId") !== mockPendingProposal.id) {
+  const objectId = formData.get("objectId");
+
+  if (typeof objectId !== "string") {
     throw new Error("Unknown proposal.");
   }
 
@@ -38,32 +51,32 @@ async function recordMockResponseAction(
     throw new Error("Choose a response.");
   }
 
-  const viewer = resolveViewer(
-    typeof formData.get("as") === "string"
-      ? (formData.get("as") as string)
-      : undefined,
-  );
-  const viewerName = viewer === "sara" ? "Sara" : "Fred";
+  const viewer = formData.get("as");
   const responseText = formData.get("responseText");
+  const sql = postgres(
+    (getCloudflareContext().env as WebCloudflareEnv).HYPERDRIVE
+      .connectionString,
+    {
+      max: 5,
+      fetch_types: false,
+    },
+  );
+  const caller = await resolveWebViewer(
+    sql,
+    typeof viewer === "string" ? viewer : undefined,
+  );
 
-  return {
-    ...mockPendingProposal,
-    lifecycleStatus: "active",
-    responses: [
-      ...mockPendingProposal.responses.filter(
-        (response) => response.displayName !== viewerName,
-      ),
-      {
-        displayName: viewerName,
-        stance,
-        responseText:
-          typeof responseText === "string" && responseText.trim()
-            ? responseText.trim()
-            : null,
-        createdAt: new Date().toISOString(),
-      },
-    ],
-  };
+  await respondToObject(sql, {
+    caller,
+    objectId,
+    stance,
+    responseText:
+      typeof responseText === "string" && responseText.trim()
+        ? responseText.trim()
+        : undefined,
+  });
+
+  return getObjectForReview(sql, objectId, caller);
 }
 
 export default async function ReviewPage({
@@ -71,18 +84,44 @@ export default async function ReviewPage({
   searchParams,
 }: ReviewPageProps) {
   const { id } = await params;
-  const viewer = resolveViewer((await searchParams).as);
+  const sql = postgres(
+    (getCloudflareContext().env as WebCloudflareEnv).HYPERDRIVE
+      .connectionString,
+    {
+      max: 5,
+      fetch_types: false,
+    },
+  );
+  const caller = await resolveWebViewer(
+    sql,
+    searchParamValue((await searchParams).as),
+  );
+  let proposal: ContextObjectView;
 
-  if (id !== mockPendingProposal.id) {
-    notFound();
+  try {
+    proposal = await getObjectForReview(sql, id, caller);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "Context object not found or not authorized"
+    ) {
+      notFound();
+    }
+    throw error;
   }
+
+  const participants = await getWorkspaceParticipants(
+    sql,
+    caller.workspaceId,
+  );
+  const viewer = caller.displayName === "Sara" ? "sara" : "fred";
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-[720px] px-5 py-10 sm:px-7 sm:py-14">
       <ReviewPanel
-        participants={mockParticipants}
-        proposal={mockPendingProposal}
-        recordResponseAction={recordMockResponseAction}
+        participants={participants}
+        proposal={proposal}
+        recordResponseAction={recordResponseAction}
         viewer={viewer}
       />
     </main>
