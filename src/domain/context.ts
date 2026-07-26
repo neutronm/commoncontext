@@ -6,6 +6,7 @@ import type {
   ContextObjectView,
   EpistemicStatus,
   ObjectType,
+  Origin,
   ParticipantResponseView,
   Stance,
 } from './types';
@@ -131,19 +132,29 @@ async function selectAuthorizedObjects(
 }
 
 function bucketNameFor(object: ContextObjectView): BucketName | null {
-  if (object.lifecycleStatus === 'superseded') return null;
+  if (
+    object.lifecycleStatus === 'superseded' ||
+    object.lifecycleStatus === 'revoked'
+  ) {
+    return null;
+  }
+
+  const hasNegativeResponse = object.responses.some(
+    (response) =>
+      response.stance === 'disputed' || response.stance === 'rejected',
+  );
+  const isReplacement = object.supersedesText !== null;
+
+  if (isReplacement && hasNegativeResponse) return 'disputed';
+  if (isReplacement && object.lifecycleStatus === 'pending') {
+    return 'unresolved';
+  }
+
   if (object.type === 'source_document') return 'sources';
   if (object.type === 'blocker') return 'blockers';
   if (object.type === 'open_question') return 'openQuestions';
   if (object.epistemicStatus === 'perspective') return 'perspectives';
-  if (
-    object.responses.some(
-      (response) =>
-        response.stance === 'disputed' || response.stance === 'rejected',
-    )
-  ) {
-    return 'disputed';
-  }
+  if (hasNegativeResponse) return 'disputed';
 
   const responsesByParticipant = new Map(
     object.responses.map((response) => [response.displayName, response.stance]),
@@ -305,6 +316,121 @@ export async function createProposal(
   };
 }
 
+export async function createChangeProposal(
+  sql: Sql,
+  args: {
+    caller: Caller;
+    objectId: string;
+    text: string;
+    origin: Extract<Origin, 'assistant' | 'web'>;
+  },
+): Promise<{ id: string; reviewPath: string }> {
+  const replacementText = args.text.trim();
+  if (!replacementText) throw new Error('Replacement wording is required');
+
+  const [proposal] = await sql<{ id: string; reviewerHandle: string }[]>`
+    with original as (
+      select context_object.id, context_object.type
+      from context_objects as context_object
+      join context_audiences as caller_audience
+        on caller_audience.context_object_id = context_object.id
+       and caller_audience.user_id = ${args.caller.userId}::uuid
+      where context_object.id = ${args.objectId}::uuid
+        and context_object.workspace_id = ${args.caller.workspaceId}::uuid
+        and context_object.lifecycle_status in ('pending', 'active')
+        and context_object.text <> ${replacementText}
+        and exists (
+          select 1
+          from context_audiences as other_audience
+          where other_audience.context_object_id = context_object.id
+            and other_audience.user_id <> ${args.caller.userId}::uuid
+        )
+        and not exists (
+          select 1
+          from context_objects as existing_replacement
+          where existing_replacement.supersedes_object_id = context_object.id
+            and existing_replacement.lifecycle_status = 'pending'
+        )
+      for update of context_object
+    ),
+    reviewer as (
+      select app_user.handle
+      from workspace_members as membership
+      join users as app_user
+        on app_user.id = membership.user_id
+      where membership.workspace_id = ${args.caller.workspaceId}::uuid
+        and membership.role = 'founder'
+        and membership.user_id <> ${args.caller.userId}::uuid
+      order by app_user.handle
+      limit 1
+    ),
+    proposal as (
+      insert into context_objects (
+        workspace_id,
+        author_user_id,
+        owner_user_id,
+        type,
+        text,
+        epistemic_status,
+        lifecycle_status,
+        origin,
+        supersedes_object_id
+      )
+      select
+        ${args.caller.workspaceId}::uuid,
+        ${args.caller.userId}::uuid,
+        ${args.caller.userId}::uuid,
+        original.type,
+        ${replacementText},
+        'proposal',
+        'pending',
+        ${args.origin},
+        original.id
+      from original
+      cross join reviewer
+      returning id
+    ),
+    audience as (
+      insert into context_audiences (context_object_id, user_id)
+      select proposal.id, membership.user_id
+      from proposal
+      join workspace_members as membership
+        on membership.workspace_id = ${args.caller.workspaceId}::uuid
+       and membership.role = 'founder'
+      returning context_object_id
+    ),
+    proposer_response as (
+      insert into participant_responses (
+        context_object_id,
+        user_id,
+        stance
+      )
+      select
+        proposal.id,
+        ${args.caller.userId}::uuid,
+        'accepted'
+      from proposal
+      returning context_object_id
+    )
+    select
+      proposal.id::text as id,
+      reviewer.handle as "reviewerHandle"
+    from proposal
+    cross join reviewer
+  `;
+
+  if (!proposal) {
+    throw new Error(
+      'Unable to propose a change to this context object',
+    );
+  }
+
+  return {
+    id: proposal.id,
+    reviewPath: `/review/${proposal.id}?as=${encodeURIComponent(proposal.reviewerHandle)}`,
+  };
+}
+
 export async function respondToObject(
   sql: Sql,
   args: {
@@ -323,6 +449,7 @@ export async function respondToObject(
        and audience.user_id = ${args.caller.userId}::uuid
       where context_object.id = ${args.objectId}::uuid
         and context_object.workspace_id = ${args.caller.workspaceId}::uuid
+        and context_object.lifecycle_status in ('pending', 'active')
     ),
     response as (
       insert into participant_responses (
@@ -344,17 +471,74 @@ export async function respondToObject(
         created_at = now()
       returning context_object_id
     ),
-    activation as (
+    accepted_replacement as (
+      select
+        context_object.id,
+        context_object.supersedes_object_id
+      from context_objects as context_object
+      join response
+        on response.context_object_id = context_object.id
+      where context_object.supersedes_object_id is not null
+        and context_object.lifecycle_status = 'pending'
+        and ${args.stance}::stance = 'accepted'
+        and not exists (
+          select 1
+          from context_audiences as other_audience
+          left join participant_responses as other_response
+            on other_response.context_object_id =
+              other_audience.context_object_id
+           and other_response.user_id = other_audience.user_id
+          where other_audience.context_object_id = context_object.id
+            and other_audience.user_id <> ${args.caller.userId}::uuid
+            and other_response.stance is distinct from 'accepted'::stance
+        )
+    ),
+    ordinary_activation as (
       update context_objects as context_object
       set lifecycle_status = 'active'
       from response
       where context_object.id = response.context_object_id
         and context_object.lifecycle_status = 'pending'
+        and context_object.supersedes_object_id is null
       returning context_object.id
+    ),
+    replacement_activation as (
+      update context_objects as context_object
+      set lifecycle_status = 'active'
+      from accepted_replacement
+      where context_object.id = accepted_replacement.id
+        and context_object.lifecycle_status = 'pending'
+      returning context_object.id
+    ),
+    replacement_revocation as (
+      update context_objects as context_object
+      set lifecycle_status = 'revoked'
+      from response
+      where context_object.id = response.context_object_id
+        and context_object.lifecycle_status = 'pending'
+        and context_object.supersedes_object_id is not null
+        and ${args.stance}::stance in ('disputed', 'rejected')
+      returning context_object.id
+    ),
+    supersession as (
+      update context_objects as original
+      set lifecycle_status = 'superseded'
+      from accepted_replacement
+      where original.id = accepted_replacement.supersedes_object_id
+        and original.lifecycle_status in ('pending', 'active')
+      returning original.id
     )
     select
       (select count(*)::integer from response) as "responseCount",
-      (select count(*)::integer from activation) as "activationCount"
+      (
+        (select count(*)::integer from ordinary_activation) +
+        (select count(*)::integer from replacement_activation)
+      ) as "activationCount",
+      (
+        select count(*)::integer
+        from replacement_revocation
+      ) as "revocationCount",
+      (select count(*)::integer from supersession) as "supersessionCount"
   `;
 
   if (!result || result.responseCount === 0) {

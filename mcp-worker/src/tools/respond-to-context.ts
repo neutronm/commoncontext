@@ -6,7 +6,7 @@ import type { Caller } from "../../../src/domain/types";
 import type { DomainApi } from "../domain-api";
 
 export const RESPOND_TO_CONTEXT_DESCRIPTION =
-  "Record the current user's stance on a shared context item: accept it, dispute it, or add their own perspective alongside it. This never edits or deletes the original item.";
+  "Record the current user's stance on a shared context item: accept it, decline it, dispute it, or add their own perspective alongside it. This never edits or deletes the original item. Use propose_context_change instead when the user wants replacement wording.";
 
 type RespondToContextDependencies = {
   sql: Sql;
@@ -24,12 +24,16 @@ export function registerRespondToContextTool(
       description: RESPOND_TO_CONTEXT_DESCRIPTION,
       inputSchema: z.object({
         object_id: z.string(),
-        stance: z.enum([
-          "acknowledged",
-          "accepted",
-          "disputed",
-          "rejected",
-        ]),
+        stance: z
+          .enum([
+            "acknowledged",
+            "accepted",
+            "disputed",
+            "rejected",
+          ])
+          .describe(
+            "Use 'accepted' to approve, 'rejected' to decline, 'disputed' to challenge, or 'acknowledged' to note without agreement.",
+          ),
         response_text: z.string().optional(),
       }),
     },

@@ -77,9 +77,14 @@ create table context_objects (
   lifecycle_status lifecycle_status not null,
   origin origin not null,
   source_reference text,
-  supersedes_object_id uuid unique references context_objects(id) on delete cascade,
+  supersedes_object_id uuid references context_objects(id) on delete cascade,
   created_at timestamptz not null default now()
 );
+
+create unique index context_objects_one_pending_replacement_idx
+  on context_objects(supersedes_object_id)
+  where supersedes_object_id is not null
+    and lifecycle_status = 'pending';
 
 create table context_audiences (
   context_object_id uuid not null references context_objects(id) on delete cascade,

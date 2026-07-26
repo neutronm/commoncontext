@@ -5,6 +5,7 @@ import postgres from "postgres";
 import * as domain from "../../src/domain/context";
 import { resolveAuthenticatedCaller } from "./auth";
 import { registerGetSharedContextTool } from "./tools/get-shared-context";
+import { registerProposeContextChangeTool } from "./tools/propose-context-change";
 import { registerProposeSharedContextTool } from "./tools/propose-shared-context";
 import { registerRespondToContextTool } from "./tools/respond-to-context";
 
@@ -67,6 +68,12 @@ export default {
       domain,
     });
     registerProposeSharedContextTool(server, {
+      sql,
+      caller,
+      publicAppUrl: env.PUBLIC_APP_URL,
+      domain,
+    });
+    registerProposeContextChangeTool(server, {
       sql,
       caller,
       publicAppUrl: env.PUBLIC_APP_URL,

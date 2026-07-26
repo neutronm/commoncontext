@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import rootPackage from "../../package.json";
 import workerPackage from "../package.json";
 import { GET_SHARED_CONTEXT_DESCRIPTION } from "./tools/get-shared-context";
+import { PROPOSE_CONTEXT_CHANGE_DESCRIPTION } from "./tools/propose-context-change";
 import { PROPOSE_SHARED_CONTEXT_DESCRIPTION } from "./tools/propose-shared-context";
 import { RESPOND_TO_CONTEXT_DESCRIPTION } from "./tools/respond-to-context";
 
@@ -15,7 +16,10 @@ describe("MCP runtime contracts", () => {
       "Propose a new item for the shared project context. This does NOT share anything immediately — it creates a pending proposal that the other participants must review and respond to before it becomes shared context. Use this when the user asks to record, save, or add something to the shared project. Always tell the user afterward that the item is pending review and not yet agreed.",
     );
     expect(RESPOND_TO_CONTEXT_DESCRIPTION).toBe(
-      "Record the current user's stance on a shared context item: accept it, dispute it, or add their own perspective alongside it. This never edits or deletes the original item.",
+      "Record the current user's stance on a shared context item: accept it, decline it, dispute it, or add their own perspective alongside it. This never edits or deletes the original item. Use propose_context_change instead when the user wants replacement wording.",
+    );
+    expect(PROPOSE_CONTEXT_CHANGE_DESCRIPTION).toBe(
+      "Propose replacement wording for an existing shared context item. This creates a new pending object linked to the original; it never edits the original, and the original remains current unless every participant accepts the replacement.",
     );
   });
 

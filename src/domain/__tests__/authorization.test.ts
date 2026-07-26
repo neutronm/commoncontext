@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   bucketContext,
+  createChangeProposal,
   createProposal,
   getAuthorizedObjects,
   getObjectForReview,
@@ -187,6 +188,266 @@ describe('domain authorization and bucketing', () => {
         where id = ${proposal.id}::uuid
       `;
     }
+  });
+
+  it('proposes replacement wording without editing the original object', async () => {
+    const originalText = 'The launch brief uses the August release window.';
+    const replacementText =
+      'The launch brief uses an August release window without a fixed date.';
+    const original = await createProposal(sql, {
+      caller: fred,
+      text: originalText,
+      type: 'decision',
+      epistemicStatus: 'proposal',
+    });
+
+    try {
+      await respondToObject(sql, {
+        caller: fred,
+        objectId: original.id,
+        stance: 'accepted',
+      });
+      await respondToObject(sql, {
+        caller: sara,
+        objectId: original.id,
+        stance: 'accepted',
+      });
+
+      const replacement = await createChangeProposal(sql, {
+        caller: sara,
+        objectId: original.id,
+        text: replacementText,
+        origin: 'web',
+      });
+      const [originalBeforeReview, replacementBeforeReview] =
+        await Promise.all([
+          getObjectForReview(sql, original.id, sara),
+          getObjectForReview(sql, replacement.id, sara),
+        ]);
+
+      expect(replacement.reviewPath).toBe(
+        `/review/${replacement.id}?as=fred`,
+      );
+      expect(originalBeforeReview).toMatchObject({
+        lifecycleStatus: 'active',
+        text: originalText,
+      });
+      expect(replacementBeforeReview).toMatchObject({
+        lifecycleStatus: 'pending',
+        supersedesText: originalText,
+        text: replacementText,
+      });
+      expect(replacementBeforeReview.responses).toEqual([
+        expect.objectContaining({
+          displayName: 'Sara',
+          stance: 'accepted',
+        }),
+      ]);
+
+      await respondToObject(sql, {
+        caller: fred,
+        objectId: replacement.id,
+        stance: 'rejected',
+        responseText: 'Keep the existing wording.',
+      });
+
+      await expect(
+        getObjectForReview(sql, original.id, fred),
+      ).resolves.toMatchObject({
+        lifecycleStatus: 'active',
+        text: originalText,
+      });
+      await expect(
+        getObjectForReview(sql, replacement.id, fred),
+      ).resolves.toMatchObject({
+        lifecycleStatus: 'revoked',
+        text: replacementText,
+      });
+
+      const retry = await createChangeProposal(sql, {
+        caller: fred,
+        objectId: original.id,
+        text: 'The launch brief uses an August release window after scope review.',
+        origin: 'assistant',
+      });
+
+      await expect(
+        getObjectForReview(sql, retry.id, sara),
+      ).resolves.toMatchObject({
+        lifecycleStatus: 'pending',
+        supersedesText: originalText,
+        text: 'The launch brief uses an August release window after scope review.',
+      });
+    } finally {
+      await sql`
+        delete from context_objects
+        where id = ${original.id}::uuid
+      `;
+    }
+  });
+
+  it('supersedes the original only after everyone accepts its replacement', async () => {
+    const original = await createProposal(sql, {
+      caller: sara,
+      text: 'The pricing review happens on Thursday.',
+      type: 'task',
+      epistemicStatus: 'proposal',
+    });
+
+    try {
+      await respondToObject(sql, {
+        caller: fred,
+        objectId: original.id,
+        stance: 'accepted',
+      });
+      await respondToObject(sql, {
+        caller: sara,
+        objectId: original.id,
+        stance: 'accepted',
+      });
+
+      const replacement = await createChangeProposal(sql, {
+        caller: fred,
+        objectId: original.id,
+        text: 'The pricing review happens before launch.',
+        origin: 'assistant',
+      });
+
+      await respondToObject(sql, {
+        caller: sara,
+        objectId: replacement.id,
+        stance: 'accepted',
+      });
+
+      await expect(
+        getObjectForReview(sql, original.id, fred),
+      ).resolves.toMatchObject({
+        lifecycleStatus: 'superseded',
+        text: 'The pricing review happens on Thursday.',
+      });
+      await expect(
+        getObjectForReview(sql, replacement.id, fred),
+      ).resolves.toMatchObject({
+        lifecycleStatus: 'active',
+        supersedesText: 'The pricing review happens on Thursday.',
+        text: 'The pricing review happens before launch.',
+        responses: expect.arrayContaining([
+          expect.objectContaining({
+            displayName: 'Fred',
+            stance: 'accepted',
+          }),
+          expect.objectContaining({
+            displayName: 'Sara',
+            stance: 'accepted',
+          }),
+        ]),
+      });
+    } finally {
+      await sql`
+        delete from context_objects
+        where id = ${original.id}::uuid
+      `;
+    }
+  });
+
+  it('does not let a private object become a shared change proposal', async () => {
+    const privateObject = saraObjects.find(
+      (object) => object.text === texts.P2,
+    );
+    expect(privateObject).toBeDefined();
+
+    await expect(
+      createChangeProposal(sql, {
+        caller: sara,
+        objectId: privateObject!.id,
+        text: 'This replacement must not reveal the private original.',
+        origin: 'assistant',
+      }),
+    ).rejects.toThrow('Unable to propose a change');
+  });
+
+  it.each([
+    ['blocker', 'blockers'],
+    ['open_question', 'openQuestions'],
+    ['source_document', 'sources'],
+  ] as const)(
+    'keeps a pending %s replacement unresolved',
+    (type, specializedBucket) => {
+      const template = saraObjects.find(
+        (object) => object.text === texts.S1,
+      );
+      expect(template).toBeDefined();
+      const pendingReplacement: ContextObjectView = {
+        ...template!,
+        id: randomUUID(),
+        type,
+        text: `Pending ${type} replacement`,
+        epistemicStatus: 'proposal',
+        lifecycleStatus: 'pending',
+        sourceReference: null,
+        supersedesText: template!.text,
+        responses: [
+          {
+            displayName: 'Sara',
+            stance: 'accepted',
+            responseText: null,
+            createdAt: template!.createdAt,
+          },
+        ],
+      };
+      const bundle = bucketContext([pendingReplacement], {
+        workspace: 'Launch planning',
+        viewer: 'Sara',
+        participants: ['Fred', 'Sara'],
+      });
+
+      expect(bundle.unresolved).toEqual([pendingReplacement]);
+      expect(bundle[specializedBucket]).toEqual([]);
+    },
+  );
+
+  it('excludes a revoked replacement from assistant context buckets', () => {
+    const template = saraObjects.find(
+      (object) => object.text === texts.S1,
+    );
+    expect(template).toBeDefined();
+    const revokedReplacement: ContextObjectView = {
+      ...template!,
+      id: randomUUID(),
+      text: 'A declined replacement kept only in the audit trail.',
+      epistemicStatus: 'proposal',
+      lifecycleStatus: 'revoked',
+      supersedesText: template!.text,
+      responses: [
+        {
+          displayName: 'Fred',
+          stance: 'accepted',
+          responseText: null,
+          createdAt: template!.createdAt,
+        },
+        {
+          displayName: 'Sara',
+          stance: 'rejected',
+          responseText: 'Keep the original.',
+          createdAt: template!.createdAt,
+        },
+      ],
+    };
+    const bundle = bucketContext([revokedReplacement], {
+      workspace: 'Launch planning',
+      viewer: 'Sara',
+      participants: ['Fred', 'Sara'],
+    });
+
+    expect([
+      ...bundle.agreed,
+      ...bundle.perspectives,
+      ...bundle.unresolved,
+      ...bundle.disputed,
+      ...bundle.openQuestions,
+      ...bundle.blockers,
+      ...bundle.sources,
+    ]).toEqual([]);
   });
 
   it('throws when respondToObject caller is outside the audience', async () => {

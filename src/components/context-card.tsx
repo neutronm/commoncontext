@@ -1,8 +1,11 @@
+import type { ReactNode } from "react";
+
 import type { ContextObjectView } from "@/domain/types";
 
 import { StanceStrip } from "@/components/stance-strip";
 
 type ContextCardProps = {
+  actions?: ReactNode;
   object: ContextObjectView;
   participants: string[];
 };
@@ -85,7 +88,11 @@ const semanticGutterClass: Record<ContextSemanticState, string> = {
   superseded: "bg-ink-muted",
 };
 
-export function ContextCard({ object, participants }: ContextCardProps) {
+export function ContextCard({
+  actions,
+  object,
+  participants,
+}: ContextCardProps) {
   const isPrivate = object.visibility === "private";
   const isSuperseded = object.lifecycleStatus === "superseded";
   const lifecycle = object.lifecycleStatus.replaceAll("_", " ");
@@ -153,6 +160,7 @@ export function ContextCard({ object, participants }: ContextCardProps) {
         )}
       </div>
 
+      {actions}
       <StanceStrip object={object} participants={participants} />
     </article>
   );

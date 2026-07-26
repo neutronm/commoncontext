@@ -2,6 +2,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import postgres from "postgres";
 
 import { ContextCard } from "@/components/context-card";
+import { ContextActions } from "@/components/context-actions";
 import {
   getAuthorizedObjects,
   getWorkspaceParticipants,
@@ -60,6 +61,12 @@ export default async function WorkspacePage({
         <div className="mt-7 space-y-5">
           {objects.map((object) => (
             <ContextCard
+              actions={
+                <ContextActions
+                  object={object}
+                  viewer={viewer}
+                />
+              }
               key={object.id}
               object={object}
               participants={participants}

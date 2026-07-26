@@ -2,13 +2,12 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { notFound } from "next/navigation";
 import postgres from "postgres";
 
-import type { ContextObjectView, Stance } from "@/domain/types";
+import type { ContextObjectView } from "@/domain/types";
 import { ReviewPanel } from "@/components/review-panel";
 import {
   getObjectForReview,
   getWorkspaceParticipants,
   resolveWebViewer,
-  respondToObject,
 } from "@/domain/context";
 
 export const dynamic = "force-dynamic";
@@ -20,58 +19,6 @@ type ReviewPageProps = {
 
 function searchParamValue(value: string | string[] | undefined) {
   return typeof value === "string" ? value : undefined;
-}
-
-function isResponseStance(value: FormDataEntryValue | null): value is Stance {
-  return (
-    value === "accepted" ||
-    value === "disputed" ||
-    value === "acknowledged"
-  );
-}
-
-async function recordResponseAction(
-  formData: FormData,
-): Promise<ContextObjectView> {
-  "use server";
-
-  const objectId = formData.get("objectId");
-
-  if (typeof objectId !== "string") {
-    throw new Error("Unknown proposal.");
-  }
-
-  const stance = formData.get("stance");
-
-  if (!isResponseStance(stance)) {
-    throw new Error("Choose a response.");
-  }
-
-  const viewer = formData.get("as");
-  const responseText = formData.get("responseText");
-  const sql = postgres(
-    getCloudflareContext().env.HYPERDRIVE.connectionString,
-    {
-      max: 5,
-      fetch_types: false,
-    },
-  );
-  const caller = await resolveWebViewer(
-    sql,
-    typeof viewer === "string" ? viewer : undefined,
-  );
-
-  await respondToObject(sql, {
-    caller,
-    objectId,
-    stance,
-    responseText:
-      typeof responseText === "string" && responseText.trim()
-        ? responseText.trim()
-        : undefined,
-  });
-
-  return getObjectForReview(sql, objectId, caller);
 }
 
 export default async function ReviewPage({
@@ -116,7 +63,6 @@ export default async function ReviewPage({
         key={`${proposal.id}:${viewer}`}
         participants={participants}
         proposal={proposal}
-        recordResponseAction={recordResponseAction}
         viewer={viewer}
       />
     </main>

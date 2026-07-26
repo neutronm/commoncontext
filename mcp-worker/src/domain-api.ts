@@ -32,6 +32,15 @@ export interface DomainApi {
       epistemicStatus: EpistemicStatus;
     },
   ): Promise<{ id: string; reviewPath: string }>;
+  createChangeProposal(
+    sql: Sql,
+    args: {
+      caller: Caller;
+      objectId: string;
+      text: string;
+      origin: "assistant" | "web";
+    },
+  ): Promise<{ id: string; reviewPath: string }>;
   respondToObject(
     sql: Sql,
     args: {
