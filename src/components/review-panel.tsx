@@ -1,15 +1,22 @@
-import type { ContextObjectView } from "@/domain/types";
+import Link from "next/link";
+
 import { ContextActions } from "@/components/context-actions";
 import {
   ContextCard,
   contextSemanticState,
   type ContextSemanticState,
 } from "@/components/context-card";
+import { ContextDetails } from "@/components/context-details";
+import type { ContextObjectView } from "@/domain/types";
+import {
+  viewerDisplayName,
+  type WebViewer,
+} from "@/lib/context-view";
 
 type ReviewPanelProps = {
   participants: string[];
   proposal: ContextObjectView;
-  viewer: "fred" | "sara";
+  viewer: WebViewer;
 };
 
 const statusTextClass: Record<ContextSemanticState, string> = {
@@ -20,30 +27,27 @@ const statusTextClass: Record<ContextSemanticState, string> = {
   superseded: "text-ink-muted",
 };
 
-function originCopy(object: ContextObjectView) {
-  if (object.origin === "assistant") {
-    return `through ${object.authorName}'s assistant`;
-  }
-
-  if (object.origin === "web") {
-    return "on the web";
-  }
-
-  return "from the shared record";
+function metadataValue(value: string) {
+  return value.replaceAll("_", " ");
 }
 
-const timestampFormatter = new Intl.DateTimeFormat("en-US", {
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-  month: "short",
-  timeZone: "UTC",
-  timeZoneName: "short",
-  year: "numeric",
-});
+function titleLabel(value: string) {
+  const label = metadataValue(value);
+  return `${label.charAt(0).toUpperCase()}${label.slice(1)}`;
+}
 
-function createdAtLabel(createdAt: string) {
-  return timestampFormatter.format(new Date(createdAt));
+function awaitingResponseLabel(object: ContextObjectView) {
+  const awaitingParticipants = object.audienceNames.filter(
+    (participant) =>
+      participant !== object.authorName &&
+      !object.responses.some(
+        (response) => response.displayName === participant,
+      ),
+  );
+
+  return awaitingParticipants.length > 0
+    ? `Proposed by you · awaiting ${awaitingParticipants.join(", ")}`
+    : "Proposed by you";
 }
 
 export function ReviewPanel({
@@ -51,27 +55,49 @@ export function ReviewPanel({
   proposal,
   viewer,
 }: ReviewPanelProps) {
-  const viewerName = viewer === "sara" ? "Sara" : "Fred";
+  const viewerName = viewerDisplayName(viewer);
   const viewerResponse = proposal.responses.find(
     (response) => response.displayName === viewerName,
   );
+  const isAuthor = proposal.authorName === viewerName;
   const statusState = contextSemanticState(proposal, participants);
+  const statusClass =
+    proposal.visibility === "private"
+      ? "text-private"
+      : statusTextClass[statusState];
   const status =
     proposal.lifecycleStatus === "superseded"
       ? "Superseded record"
-      : viewerResponse
-        ? `Your response · ${viewerResponse.stance.replaceAll("_", " ")}`
-        : "Pending your response";
+      : proposal.visibility === "private"
+        ? "Private record"
+        : isAuthor
+          ? awaitingResponseLabel(proposal)
+          : viewerResponse
+            ? `Your response · ${metadataValue(viewerResponse.stance)}`
+            : "Pending your response";
+  const title =
+    !isAuthor &&
+    !viewerResponse &&
+    proposal.visibility === "shared" &&
+    proposal.lifecycleStatus !== "superseded"
+      ? `${proposal.authorName} proposed a ${metadataValue(proposal.type)}`
+      : `${titleLabel(proposal.type)} details`;
 
   return (
     <>
+      <Link
+        className="inline-flex min-h-10 items-center font-mono text-[11px] font-semibold tracking-[0.06em] text-ink uppercase underline decoration-rule underline-offset-4 hover:decoration-ink"
+        href={`/workspace?as=${viewer}`}
+      >
+        <span aria-hidden="true">←</span>&nbsp; Back to workspace
+      </Link>
+
       <header>
-        <h1 className="text-[28px] leading-tight font-semibold text-ink">
-          {proposal.authorName} proposed a{" "}
-          {proposal.type.replaceAll("_", " ")}
+        <h1 className="mt-5 text-[28px] leading-tight font-semibold text-ink">
+          {title}
         </h1>
         <p
-          className={`mt-2 font-mono text-[11px] tracking-[0.06em] uppercase ${statusTextClass[statusState]}`}
+          className={`mt-2 font-mono text-[11px] tracking-[0.06em] uppercase ${statusClass}`}
         >
           {status}
         </p>
@@ -91,24 +117,43 @@ export function ReviewPanel({
           participants={participants}
         />
 
-        <p className="mt-4 font-mono text-[11px] leading-4 tracking-[0.06em] text-ink-muted uppercase">
-          Proposed {originCopy(proposal)} ·{" "}
-          <time dateTime={proposal.createdAt}>
-            {createdAtLabel(proposal.createdAt)}
-          </time>
-        </p>
+        {!isAuthor &&
+          !viewerResponse &&
+          proposal.visibility === "shared" &&
+          proposal.lifecycleStatus !== "superseded" && (
+            <p className="mt-7 text-[17px] leading-7 text-ink">
+              Nothing becomes shared context until you respond.
+            </p>
+          )}
 
-        {!viewerResponse && proposal.lifecycleStatus !== "superseded" && (
-          <p className="mt-7 text-[17px] leading-7 text-ink">
-            Nothing becomes shared context until you respond.
+        {isAuthor &&
+          proposal.visibility === "shared" &&
+          proposal.lifecycleStatus !== "superseded" &&
+          proposal.lifecycleStatus !== "revoked" && (
+            <p className="mt-7 text-[17px] leading-7 text-ink">
+              Only other participants can accept or decline your proposal.
+            </p>
+          )}
+
+        {(isAuthor ? proposal.visibility === "shared" : true) && (
+          <p className="mt-6 text-[16px] leading-7 text-ink">
+            {isAuthor ? (
+              <>
+                Use Propose change to suggest replacement wording.
+                <br />
+                The original wording is never edited or removed.
+              </>
+            ) : (
+              <>
+                Your response is recorded alongside the original statement.
+                <br />
+                Its wording is never edited or removed.
+              </>
+            )}
           </p>
         )}
 
-        <p className="mt-6 text-[16px] leading-7 text-ink">
-          Your response is recorded alongside the original statement.
-          <br />
-          Its wording is never edited or removed.
-        </p>
+        <ContextDetails object={proposal} />
       </div>
     </>
   );

@@ -12,10 +12,7 @@ type ProposeContextChangeDependencies = {
   sql: Sql;
   caller: Caller;
   publicAppUrl: string;
-  domain: Pick<
-    DomainApi,
-    "createChangeProposal" | "getWorkspaceParticipants"
-  >;
+  domain: Pick<DomainApi, "createChangeProposal">;
 };
 
 type ProposeContextChangeInput = {
@@ -27,14 +24,6 @@ export async function createContextChangeResult(
   dependencies: ProposeContextChangeDependencies,
   input: ProposeContextChangeInput,
 ) {
-  const participants =
-    await dependencies.domain.getWorkspaceParticipants(
-      dependencies.sql,
-      dependencies.caller.workspaceId,
-    );
-  const sharedWith = participants.filter(
-    (participant) => participant !== dependencies.caller.displayName,
-  );
   const proposal = await dependencies.domain.createChangeProposal(
     dependencies.sql,
     {
@@ -46,14 +35,16 @@ export async function createContextChangeResult(
   );
   const reviewUrl = `${dependencies.publicAppUrl.replace(/\/$/, "")}${proposal.reviewPath}`;
   const reviewers =
-    sharedWith.length > 0 ? sharedWith.join(" and ") : "another participant";
+    proposal.reviewerNames.length > 0
+      ? proposal.reviewerNames.join(" and ")
+      : "another participant";
 
   return {
     status: "pending_change_review",
     id: proposal.id,
     supersedes_id: input.object_id,
     review_url: reviewUrl,
-    shared_with: sharedWith,
+    shared_with: proposal.reviewerNames,
     message: `Created a pending change proposal for ${reviewers} to review. The original wording was not edited and remains current unless every participant accepts the replacement.`,
   };
 }

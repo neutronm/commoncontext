@@ -19,13 +19,13 @@ const sara: Caller = {
 
 function changeDomain(reviewPath: string): Pick<
   DomainApi,
-  "createChangeProposal" | "getWorkspaceParticipants"
+  "createChangeProposal"
 > {
   return {
-    getWorkspaceParticipants: vi.fn().mockResolvedValue(["Fred", "Sara"]),
     createChangeProposal: vi.fn().mockResolvedValue({
       id: "replacement-id",
       reviewPath,
+      reviewerNames: reviewPath.endsWith("sara") ? ["Sara"] : ["Fred"],
     }),
   };
 }

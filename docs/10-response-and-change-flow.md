@@ -8,17 +8,20 @@ or eight domain functions, this document controls.
 
 ## Product behavior
 
-Every eligible shared context object exposes these actions on both
-`/workspace` and `/review/[id]`:
+Every eligible shared context object exposes actions on both `/workspace` and
+`/review/[id]`:
 
-1. **Accept** — records stance `accepted`.
-2. **Decline** — records stance `rejected`.
+1. **Accept** — available only to non-authors; records stance `accepted`.
+2. **Decline** — available only to non-authors; records stance `rejected`.
 3. **Propose change** — creates a new pending context object whose
-   `supersedes_object_id` points to the original.
+   `supersedes_object_id` points to the original; available to authors and
+   non-authors.
 
-The controls remain visible after a participant has responded. Their current
-stance is shown, and they may choose the other response. Private, superseded,
-and revoked objects have no response controls.
+Authors see only **Propose change** on their own objects. Non-authors keep all
+three controls after responding; their current stance is shown, and they may
+choose the other response. Proposing an item records the author's stance as
+`accepted` automatically. Private, superseded, and revoked objects have no
+response or replacement controls.
 
 ## Immutable replacement lifecycle
 
@@ -57,12 +60,20 @@ createChangeProposal(sql: Sql, args: {
   objectId: string;
   text: string;
   origin: Extract<Origin, "assistant" | "web">;
-}): Promise<{ id: string; reviewPath: string }>
+}): Promise<{
+  id: string;
+  reviewPath: string;
+  reviewerNames: string[];
+}>
 ```
 
 It rejects callers outside the original audience, private originals,
 superseded or revoked originals, unchanged/empty wording, and objects that
 already have a pending replacement.
+
+The reviewer names come from the same atomic query as the proposal. The MCP
+tool uses them directly instead of making a second database round trip before
+creating the replacement.
 
 ## Assistant tools
 
@@ -71,7 +82,7 @@ acknowledgement and dispute stances.
 
 **Description string (use verbatim):**
 
-> Record the current user's stance on a shared context item: accept it, decline it, dispute it, or add their own perspective alongside it. This never edits or deletes the original item. Use propose_context_change instead when the user wants replacement wording.
+> Record the current user's stance on another participant's shared context item: accept it, decline it, dispute it, or add their own perspective alongside it. Authors cannot respond to their own items; use propose_context_change when the user wants to revise their own proposal or suggest replacement wording. This never edits or deletes the original item.
 
 The input remains:
 
@@ -83,7 +94,8 @@ z.object({
 })
 ```
 
-Use `accepted` to approve and `rejected` to decline.
+Use `accepted` to approve and `rejected` to decline. The domain function
+rejects attempts to respond to self-authored objects.
 
 The fourth tool is `propose_context_change`.
 
@@ -105,13 +117,15 @@ other tools. It takes no `user_id` or audience argument.
 
 ## Verification
 
-1. Both screens visibly render `Accept`, `Decline`, and `Propose change`.
-2. The review screen keeps the controls visible for an existing response.
-3. A proposed replacement preserves the original text and starts pending.
-4. Declining a replacement leaves the original active.
-5. A declined replacement is revoked and another replacement can be proposed.
-6. Pending blocker, open-question, and source replacements are unresolved.
-7. Unanimously accepting a replacement supersedes the original.
-8. A private object cannot be used to create a shared replacement.
-9. Fred's and Sara's connector URLs expose all four tools with caller identity
+1. Both screens render `Accept`, `Decline`, and `Propose change` for a
+   non-author.
+2. Authors see only `Propose change` on their own objects.
+3. The review screen keeps the controls visible for an existing response.
+4. A proposed replacement preserves the original text and starts pending.
+5. Declining a replacement leaves the original active.
+6. A declined replacement is revoked and another replacement can be proposed.
+7. Pending blocker, open-question, and source replacements are unresolved.
+8. Unanimously accepting a replacement supersedes the original.
+9. A private object cannot be used to create a shared replacement.
+10. Fred's and Sara's connector URLs expose all four tools with caller identity
    resolved from the token.

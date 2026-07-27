@@ -2,13 +2,14 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { notFound } from "next/navigation";
 import postgres from "postgres";
 
-import type { ContextObjectView } from "@/domain/types";
 import { ReviewPanel } from "@/components/review-panel";
 import {
   getObjectForReview,
   getWorkspaceParticipants,
   resolveWebViewer,
 } from "@/domain/context";
+import type { ContextObjectView } from "@/domain/types";
+import { isContextObjectId } from "@/lib/context-view";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,11 @@ export default async function ReviewPage({
   searchParams,
 }: ReviewPageProps) {
   const { id } = await params;
+
+  if (!isContextObjectId(id)) {
+    notFound();
+  }
+
   const sql = postgres(
     getCloudflareContext().env.HYPERDRIVE.connectionString,
     {
