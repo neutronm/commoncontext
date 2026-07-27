@@ -1,6 +1,6 @@
 # Shared-context demo — spec set
 
-Eleven documents. Read in this order; dispatch in the order under **Handoff**.
+Twelve documents. Read in this order; dispatch in the order under **Handoff**.
 
 | Doc | What it is | Who reads it |
 |---|---|---|
@@ -15,6 +15,7 @@ Eleven documents. Read in this order; dispatch in the order under **Handoff**.
 | `08-scaffold-checklist.md` | What Fred does before any agent starts. | Fred |
 | `09-build-plan.md` | Phase-gated plan. No clock. | Fred |
 | `10-response-and-change-flow.md` | Approved post-review extension: accept, decline, and immutable change proposals. Extends the shared domain contract and overrides earlier response-flow details where they conflict. | Everyone |
+| `11-sharing-awareness.md` | Approved assistant-behavior extension: participant awareness, proactive proposal suggestions, and confirmation before inferred sharing. | Everyone |
 
 ## Handoff
 
@@ -31,6 +32,6 @@ Eleven documents. Read in this order; dispatch in the order under **Handoff**.
 - Seed counts: 11 authorized objects each for Fred and Sara before Beat 3.
 - Bucketing: seven buckets, ordered evaluation, 10 of Sara's 11 objects land somewhere.
 - `visibility` is derived from audience, never stored.
-- Tool descriptions and the wire shape in `02`, as amended by `10`, are byte-exact.
+- Tool descriptions and the wire shape in `02`, as amended by `10` and `11`, are byte-exact.
 - `DATABASE_URL` is the session-mode pooler. Only the Hyperdrive config gets the direct string.
 - Beat 2 (the refusal) and Beat 1's provenance-separated answer are never cuttable.

@@ -6,7 +6,7 @@ import type { Caller } from "../../../src/domain/types";
 import type { DomainApi } from "../domain-api";
 
 export const PROPOSE_SHARED_CONTEXT_DESCRIPTION =
-  "Propose a new item for the shared project context. This does NOT share anything immediately — it creates a pending proposal that the other participants must review and respond to before it becomes shared context. Use this when the user asks to record, save, or add something to the shared project. Always tell the user afterward that the item is pending review and not yet agreed.";
+  "Propose a new item for the shared project context. This does NOT share anything immediately — it creates a pending proposal that the other participants must review and respond to before it becomes shared context. Use this immediately only when the user explicitly and affirmatively asks to record, save, add, or propose something in shared context. If the user instead affirmatively asks to tell or inform a participant, wants a participant to know something, or if you infer that durable project information could help them, do not call this tool yet: first call get_shared_context, verify the recipient appears in shared_with, present a one-sentence preview in the user's own words, explain that it is pending review rather than a direct message, and ask for confirmation. Call this tool only after that confirmation. Never call this tool when the user negates communication or says not to share. Always tell the user afterward that the item is pending review and not yet agreed.";
 
 type ProposeSharedContextDependencies = {
   sql: Sql;
