@@ -1,3 +1,4 @@
+-- Add first-class conditional acceptance and question resolution links.
 alter type lifecycle_status
   add value if not exists 'resolved' after 'active';
 

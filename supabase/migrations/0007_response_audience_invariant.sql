@@ -1,3 +1,4 @@
+-- Make context_audiences the database-enforced response authority.
 do $$
 begin
   if not exists (
