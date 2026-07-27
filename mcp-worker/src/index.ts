@@ -1,9 +1,9 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createMcpHandler } from "agents/mcp";
 import postgres from "postgres";
 
 import * as domain from "../../src/domain/context";
 import { resolveAuthenticatedCaller } from "./auth";
+import { createSharedContextServer } from "./server";
 import { registerGetSharedContextTool } from "./tools/get-shared-context";
 import { registerProposeContextChangeTool } from "./tools/propose-context-change";
 import { registerProposeSharedContextTool } from "./tools/propose-shared-context";
@@ -57,10 +57,7 @@ export default {
     if (callerResolution.status === "unknown_token") return unauthorized();
     const caller = callerResolution.caller;
 
-    const server = new McpServer({
-      name: "Shared Context",
-      version: "0.1.0",
-    });
+    const server = createSharedContextServer();
     registerGetSharedContextTool(server, {
       sql,
       caller,

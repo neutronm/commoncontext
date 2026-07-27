@@ -10,7 +10,10 @@ import type {
 import type { DomainApi } from "../domain-api";
 
 export const GET_SHARED_CONTEXT_DESCRIPTION =
-  "Retrieve the complete set of shared project context the current user is authorized to see, including decisions, tasks, blockers, open questions, and each founder's stated perspectives — along with who authored each item, who has accepted or disputed it, and where it came from. Use this whenever the user asks what has been decided, agreed, disputed, or what the other person thinks. This returns everything the user is permitted to see; it is not a search, and nothing outside this result is available to you.";
+  "Retrieve the complete set of shared project context the current user is authorized to see, including decisions, tasks, blockers, open questions, and each founder's stated perspectives — along with who authored each item, who has accepted or disputed it, and where it came from. Use this whenever the user asks what has been decided, agreed, disputed, or what the other person thinks. Also use this before responding to an affirmative intent to tell, inform, or make a named person aware of something, and before suggesting that durable project information be proposed, so you can verify the person appears in shared_with and avoid duplicating information that is already shared or pending. This returns everything the user is permitted to see; it is not a search, and nothing outside this result is available to you.";
+
+export const PROPOSAL_NOTE =
+  "People in shared_with are the other workspace participants with whom the viewer can propose shared context. When the user affirmatively says to tell or inform one of them, wants one of them to know something, or states new durable project information that could plausibly help them, first check that no equivalent shared or pending object already exists. If one exists, explain its current status instead of proposing a duplicate. A private object is not a shared duplicate: never proactively surface or suggest its content, but if the user's current request explicitly says to tell or inform someone, base the preview only on what that request asks to communicate. Never suggest or create a proposal when the user negates communication or says not to share. Do not suggest a proposal when the current request marks information private, confidential, speculative, or between us. Otherwise, offer a one-sentence proposal preview in the user's own words, name who would review it, explain that it is pending shared context rather than a direct message, and ask for confirmation before calling propose_shared_context. Do not suggest a proposal for a mere question about a participant or short-lived conversation. If the named person is not in shared_with, say that no proposal can be made through the current shared context.";
 
 type GetSharedContextDependencies = {
   sql: Sql;
@@ -164,10 +167,16 @@ function serializeSource(object: ContextObjectView): WireObject {
 }
 
 export function serializeContextBundle(bundle: ContextBundle) {
+  const sharedWith = bundle.participants.filter(
+    (participant) => participant !== bundle.viewer,
+  );
+
   return {
     workspace: bundle.workspace,
     viewer: bundle.viewer,
     participants: bundle.participants,
+    shared_with: sharedWith,
+    proposal_note: PROPOSAL_NOTE,
     boundary_note: `This is the complete set of context ${bundle.viewer} is authorized to see. Context that other participants have kept private is not included and cannot be inferred. If the user asks about something not present here, state that you have no authorized information about it rather than speculating.`,
     agreed: bundle.agreed.map(serializeAgreed),
     perspectives: bundle.perspectives.map(serializePerspective),
