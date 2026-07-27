@@ -126,11 +126,30 @@ export function ReviewPanel({
             </p>
           )}
 
-        {!isAuthor && (
+        {isAuthor &&
+          proposal.visibility === "shared" &&
+          proposal.lifecycleStatus !== "superseded" &&
+          proposal.lifecycleStatus !== "revoked" && (
+            <p className="mt-7 text-[17px] leading-7 text-ink">
+              Only other participants can accept or decline your proposal.
+            </p>
+          )}
+
+        {(isAuthor ? proposal.visibility === "shared" : true) && (
           <p className="mt-6 text-[16px] leading-7 text-ink">
-            Your response is recorded alongside the original statement.
-            <br />
-            Its wording is never edited or removed.
+            {isAuthor ? (
+              <>
+                Use Propose change to suggest replacement wording.
+                <br />
+                The original wording is never edited or removed.
+              </>
+            ) : (
+              <>
+                Your response is recorded alongside the original statement.
+                <br />
+                Its wording is never edited or removed.
+              </>
+            )}
           </p>
         )}
 

@@ -6,9 +6,9 @@ import type { ContextObjectView } from "@/domain/types";
 
 type ContextCardProps = {
   actions?: ReactNode;
-  href?: string;
   object: ContextObjectView;
   participants: string[];
+  reviewHref?: string;
 };
 
 export type ContextSemanticState =
@@ -91,15 +91,15 @@ const semanticGutterClass: Record<ContextSemanticState, string> = {
 
 export function ContextCard({
   actions,
-  href,
   object,
   participants,
+  reviewHref,
 }: ContextCardProps) {
   const isPrivate = object.visibility === "private";
   const isSuperseded = object.lifecycleStatus === "superseded";
   const lifecycle = object.lifecycleStatus.replaceAll("_", " ");
   const content = (
-    <div className="px-5 pt-5 pb-4">
+    <>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-2 font-mono text-[11px] leading-4 tracking-[0.06em] text-ink-muted uppercase">
         <span>
           {metadataLabel(object)} · lifecycle {lifecycle}
@@ -144,12 +144,12 @@ export function ContextCard({
         </div>
       )}
 
-      {href && (
+      {reviewHref && (
         <p className="mt-5 font-mono text-[11px] leading-4 font-semibold tracking-[0.06em] text-ink uppercase">
           View details <span aria-hidden="true">→</span>
         </p>
       )}
-    </div>
+    </>
   );
 
   return (
@@ -171,16 +171,16 @@ export function ContextCard({
         />
       )}
 
-      {href ? (
+      {reviewHref ? (
         <Link
           aria-label={`View details for ${object.type.replaceAll("_", " ")}: ${object.text}`}
-          className="group block hover:outline hover:outline-1 hover:outline-offset-[-1px] hover:outline-ink focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ink"
-          href={href}
+          className="block px-5 pt-5 pb-4 transition-colors hover:bg-ink/[0.025] focus-visible:bg-ink/[0.025] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ink"
+          href={reviewHref}
         >
           {content}
         </Link>
       ) : (
-        content
+        <div className="px-5 pt-5 pb-4">{content}</div>
       )}
 
       {actions}

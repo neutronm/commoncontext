@@ -49,10 +49,10 @@ export default async function WorkspacePage({
               actions={
                 <ContextActions object={object} viewer={viewer} />
               }
-              href={`/review/${object.id}?as=${viewer}`}
               key={object.id}
               object={object}
               participants={participants}
+              reviewHref={`/review/${object.id}?as=${viewer}`}
             />
           ))}
         </div>

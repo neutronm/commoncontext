@@ -561,7 +561,7 @@ export async function respondToObject(
   `;
 
   if (!result || result.responseCount === 0) {
-    throw new Error('Caller is not in the object audience');
+    throw new Error('Caller cannot respond to this context object');
   }
 }
 

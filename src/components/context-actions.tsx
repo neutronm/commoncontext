@@ -59,8 +59,8 @@ export function ContextActions({
       className="border-t border-rule px-5 py-4"
     >
       {!canRespond ? (
-        <p className="mb-3 font-mono text-[11px] leading-4 tracking-[0.06em] text-pending uppercase">
-          You proposed this item
+        <p className="mb-3 font-mono text-[11px] leading-4 tracking-[0.06em] text-ink-muted uppercase">
+          Your proposal · only other participants can accept or decline
         </p>
       ) : currentResponse ? (
         <p className="mb-3 font-mono text-[11px] leading-4 tracking-[0.06em] text-ink-muted uppercase">

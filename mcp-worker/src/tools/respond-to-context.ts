@@ -6,7 +6,7 @@ import type { Caller } from "../../../src/domain/types";
 import type { DomainApi } from "../domain-api";
 
 export const RESPOND_TO_CONTEXT_DESCRIPTION =
-  "Record the current user's stance on a shared context item: accept it, decline it, dispute it, or add their own perspective alongside it. This never edits or deletes the original item. Use propose_context_change instead when the user wants replacement wording.";
+  "Record the current user's stance on another participant's shared context item: accept it, decline it, dispute it, or add their own perspective alongside it. Authors cannot respond to their own items; use propose_context_change when the user wants to revise their own proposal or suggest replacement wording. This never edits or deletes the original item.";
 
 type RespondToContextDependencies = {
   sql: Sql;
