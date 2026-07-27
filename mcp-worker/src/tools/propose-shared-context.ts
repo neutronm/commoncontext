@@ -23,6 +23,7 @@ type ProposeSharedContextInput = {
     | "reported_fact"
     | "perspective"
     | "proposal";
+  resolves?: string;
 };
 
 function participantList(names: string[]): string {
@@ -61,6 +62,7 @@ export async function createProposalResult(
       text: input.text,
       type: input.type,
       epistemicStatus: input.epistemic_status,
+      resolvesObjectId: input.resolves,
     },
   );
   const reviewUrl = `${dependencies.publicAppUrl.replace(/\/$/, "")}${proposal.reviewPath}`;
@@ -70,6 +72,7 @@ export async function createProposalResult(
     id: proposal.id,
     review_url: reviewUrl,
     shared_with: sharedWith,
+    ...(input.resolves ? { resolves: input.resolves } : {}),
     message: proposalMessage(sharedWith),
   };
 }
@@ -103,13 +106,20 @@ export function registerProposeSharedContextTool(
           .describe(
             "Use 'proposal' unless the user is recording something already jointly agreed.",
           ),
+        resolves: z
+          .uuid()
+          .optional()
+          .describe(
+            "For a decision that answers an open question, the open question's object id. It is marked resolved only after full acceptance.",
+          ),
       }),
     },
-    async ({ text, type, epistemic_status }) => {
+    async ({ text, type, epistemic_status, resolves }) => {
       const result = await createProposalResult(dependencies, {
         text,
         type,
         epistemic_status,
+        resolves,
       });
 
       return {

@@ -7,6 +7,7 @@ type StanceStripProps = {
 
 const stanceColor = {
   accepted: "text-agreed",
+  accepted_with_condition: "text-pending",
   acknowledged: "text-ink-muted",
   disputed: "text-disputed",
   rejected: "text-disputed",
@@ -25,7 +26,8 @@ export function StanceStrip({ object, participants }: StanceStripProps) {
           );
           const stance = !hasAccess
             ? "no access"
-            : (response?.stance ?? "awaiting response");
+            : (response?.stance.replaceAll("_", " ") ??
+              "awaiting response");
           const color = !hasAccess
             ? stanceColor.inaccessible
             : response

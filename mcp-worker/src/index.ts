@@ -4,6 +4,7 @@ import postgres from "postgres";
 
 import * as domain from "../../src/domain/context";
 import { resolveAuthenticatedCaller } from "./auth";
+import { registerAddPrivateContextTool } from "./tools/add-private-context";
 import { registerGetSharedContextTool } from "./tools/get-shared-context";
 import { registerProposeContextChangeTool } from "./tools/propose-context-change";
 import { registerProposeSharedContextTool } from "./tools/propose-shared-context";
@@ -61,6 +62,7 @@ export default {
       name: "Shared Context",
       version: "0.1.0",
     });
+    registerAddPrivateContextTool(server, { sql, caller, domain });
     registerGetSharedContextTool(server, {
       sql,
       caller,

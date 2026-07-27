@@ -22,6 +22,9 @@ const initialState: ContextActionState = {
 
 function responseLabel(stance: string) {
   if (stance === "accepted") return "accepted";
+  if (stance === "accepted_with_condition") {
+    return "accepted with condition";
+  }
   if (stance === "rejected") return "declined";
   return stance;
 }
@@ -42,13 +45,15 @@ export function ContextActions({
   );
   const canAct =
     object.visibility === "shared" &&
-    object.lifecycleStatus !== "superseded" &&
-    object.lifecycleStatus !== "revoked";
+    (object.lifecycleStatus === "pending" ||
+      object.lifecycleStatus === "active");
   const isAuthor = object.authorName === viewerName;
 
   if (!canAct) return null;
 
   const accepted = currentResponse?.stance === "accepted";
+  const acceptedWithCondition =
+    currentResponse?.stance === "accepted_with_condition";
   const declined =
     currentResponse?.stance === "rejected" ||
     currentResponse?.stance === "disputed";
@@ -81,7 +86,7 @@ export function ContextActions({
               className="mb-2 block font-mono text-[11px] tracking-[0.06em] text-ink-muted uppercase"
               htmlFor={`response-${object.id}`}
             >
-              Add your perspective (optional)
+              Add your perspective or condition (optional)
             </label>
             <textarea
               className="mb-4 min-h-24 w-full resize-y border border-rule bg-card px-4 py-3 text-[16px] leading-6 text-ink"
@@ -121,6 +126,22 @@ export function ContextActions({
                 >
                   {pending ? "Recording…" : "Accept"}
                 </button>
+                {mode === "review" && (
+                  <button
+                    aria-pressed={acceptedWithCondition}
+                    className={`min-h-10 border px-4 py-2 text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
+                      acceptedWithCondition
+                        ? "border-pending bg-pending text-card"
+                        : "border-rule bg-card text-ink"
+                    }`}
+                    disabled={pending || acceptedWithCondition}
+                    name="intent"
+                    type="submit"
+                    value="accept_with_condition"
+                  >
+                    {pending ? "Recording…" : "Accept with condition"}
+                  </button>
+                )}
                 <button
                   aria-pressed={declined}
                   className={`min-h-10 border px-4 py-2 text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${

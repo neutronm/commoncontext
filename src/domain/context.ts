@@ -24,17 +24,13 @@ type BucketName =
   | 'blockers'
   | 'sources';
 
-function visibleObjectIds(sql: Sql, userId: string) {
+function audienceObjectIds(sql: Sql, userId: string) {
   return sql`
     select context_object.id
     from context_objects as context_object
-    where context_object.author_user_id = ${userId}::uuid
-      or exists (
-        select 1
-        from context_audiences as audience
-        where audience.context_object_id = context_object.id
-          and audience.user_id = ${userId}::uuid
-      )
+    join context_audiences as audience
+      on audience.context_object_id = context_object.id
+     and audience.user_id = ${userId}::uuid
   `;
 }
 
@@ -46,8 +42,8 @@ async function selectAuthorizedObjects(
   const requestedObjectId = objectId ?? null;
 
   const rows = await sql<ContextObjectRow[]>`
-    with visible_object_ids as (
-      ${visibleObjectIds(sql, caller.userId)}
+    with authorized_object_ids as (
+      ${audienceObjectIds(sql, caller.userId)}
     )
     select
       context_object.id::text as id,
@@ -66,14 +62,16 @@ async function selectAuthorizedObjects(
       audience.names as "audienceNames",
       context_object.source_reference as "sourceReference",
       superseded_object.text as "supersedesText",
+      context_object.resolves_object_id::text as "resolvesObjectId",
+      context_object.resolved_by_object_id::text as "resolvedByObjectId",
       responses.items as responses,
       to_char(
         context_object.created_at at time zone 'UTC',
         'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
       ) as "createdAt"
     from context_objects as context_object
-    join visible_object_ids
-      on visible_object_ids.id = context_object.id
+    join authorized_object_ids
+      on authorized_object_ids.id = context_object.id
     join users as author
       on author.id = context_object.author_user_id
     join users as owner
@@ -133,6 +131,7 @@ async function selectAuthorizedObjects(
 
 function bucketNameFor(object: ContextObjectView): BucketName | null {
   if (
+    object.lifecycleStatus === 'resolved' ||
     object.lifecycleStatus === 'superseded' ||
     object.lifecycleStatus === 'revoked'
   ) {
@@ -257,8 +256,10 @@ export async function createProposal(
     text: string;
     type: ObjectType;
     epistemicStatus: EpistemicStatus;
+    resolvesObjectId?: string;
   },
 ): Promise<{ id: string; reviewPath: string }> {
+  const resolvesObjectId = args.resolvesObjectId ?? null;
   const [proposal] = await sql<{ id: string; reviewerHandle: string }[]>`
     with reviewer as (
       select app_user.handle
@@ -271,7 +272,114 @@ export async function createProposal(
       order by app_user.handle
       limit 1
     ),
+    validated_input as (
+      select resolution_target.id as resolves_object_id
+      from (values (1)) as input(singleton)
+      left join context_objects as resolution_target
+        on resolution_target.id = ${resolvesObjectId}::uuid
+       and ${args.type}::context_object_type = 'decision'
+       and resolution_target.workspace_id = ${args.caller.workspaceId}::uuid
+       and resolution_target.type = 'open_question'
+       and resolution_target.lifecycle_status in ('pending', 'active')
+       and not exists (
+         select 1
+         from context_objects as existing_resolution
+         where existing_resolution.resolves_object_id = resolution_target.id
+           and existing_resolution.lifecycle_status = 'pending'
+       )
+       and exists (
+         select 1
+         from context_audiences as caller_audience
+         where caller_audience.context_object_id = resolution_target.id
+           and caller_audience.user_id = ${args.caller.userId}::uuid
+       )
+      where
+        ${resolvesObjectId}::uuid is null
+        or resolution_target.id is not null
+    ),
     proposal as (
+      insert into context_objects (
+        workspace_id,
+        author_user_id,
+        owner_user_id,
+        type,
+        text,
+        epistemic_status,
+        lifecycle_status,
+        origin,
+        resolves_object_id
+      )
+      select
+        ${args.caller.workspaceId}::uuid,
+        ${args.caller.userId}::uuid,
+        ${args.caller.userId}::uuid,
+        ${args.type},
+        ${args.text},
+        ${args.epistemicStatus},
+        'pending',
+        'assistant',
+        validated_input.resolves_object_id
+      from reviewer
+      cross join validated_input
+      returning id
+    ),
+    audience as (
+      insert into context_audiences (context_object_id, user_id)
+      select proposal.id, membership.user_id
+      from proposal
+      join workspace_members as membership
+        on membership.workspace_id = ${args.caller.workspaceId}::uuid
+      returning context_object_id
+    ),
+    proposer_response as (
+      insert into participant_responses (
+        context_object_id,
+        user_id,
+        stance
+      )
+      select
+        proposal.id,
+        ${args.caller.userId}::uuid,
+        'accepted'
+      from proposal
+      returning context_object_id
+    )
+    select
+      proposal.id::text as id,
+      reviewer.handle as "reviewerHandle"
+    from proposal
+    cross join reviewer
+  `;
+
+  if (!proposal) {
+    throw new Error('Unable to create proposal or resolve that open question');
+  }
+  return {
+    id: proposal.id,
+    reviewPath: `/review/${proposal.id}?as=${encodeURIComponent(proposal.reviewerHandle)}`,
+  };
+}
+
+export async function createPrivateContext(
+  sql: Sql,
+  args: {
+    caller: Caller;
+    text: string;
+    type: ObjectType;
+  },
+): Promise<{ id: string }> {
+  const text = args.text.trim();
+  if (!text) throw new Error('Private context text is required');
+
+  const epistemicStatus: EpistemicStatus =
+    args.type === 'perspective'
+      ? 'perspective'
+      : args.type === 'open_question'
+        ? 'proposal'
+        : 'reported_fact';
+
+  const [privateObject] = await sql<{ id: string }[]>`
+    with private_object as (
       insert into context_objects (
         workspace_id,
         author_user_id,
@@ -282,38 +390,32 @@ export async function createProposal(
         lifecycle_status,
         origin
       )
-      select
+      values (
         ${args.caller.workspaceId}::uuid,
         ${args.caller.userId}::uuid,
         ${args.caller.userId}::uuid,
         ${args.type},
-        ${args.text},
-        ${args.epistemicStatus},
-        'pending',
+        ${text},
+        ${epistemicStatus},
+        'active',
         'assistant'
-      from reviewer
+      )
       returning id
     ),
-    audience as (
+    owner_audience as (
       insert into context_audiences (context_object_id, user_id)
-      select proposal.id, membership.user_id
-      from proposal
-      join workspace_members as membership
-        on membership.workspace_id = ${args.caller.workspaceId}::uuid
-       and membership.role = 'founder'
+      select private_object.id, ${args.caller.userId}::uuid
+      from private_object
+      returning context_object_id
     )
-    select
-      proposal.id::text as id,
-      reviewer.handle as "reviewerHandle"
-    from proposal
-    cross join reviewer
+    select private_object.id::text as id
+    from private_object
+    join owner_audience
+      on owner_audience.context_object_id = private_object.id
   `;
 
-  if (!proposal) throw new Error('Unable to create proposal');
-  return {
-    id: proposal.id,
-    reviewPath: `/review/${proposal.id}?as=${encodeURIComponent(proposal.reviewerHandle)}`,
-  };
+  if (!privateObject) throw new Error('Unable to create private context');
+  return privateObject;
 }
 
 export async function createChangeProposal(
@@ -329,12 +431,14 @@ export async function createChangeProposal(
   if (!replacementText) throw new Error('Replacement wording is required');
 
   const [proposal] = await sql<{ id: string; reviewerHandle: string }[]>`
-    with original as (
+    with authorized_object_ids as (
+      ${audienceObjectIds(sql, args.caller.userId)}
+    ),
+    original as (
       select context_object.id, context_object.type
       from context_objects as context_object
-      join context_audiences as caller_audience
-        on caller_audience.context_object_id = context_object.id
-       and caller_audience.user_id = ${args.caller.userId}::uuid
+      join authorized_object_ids
+        on authorized_object_ids.id = context_object.id
       where context_object.id = ${args.objectId}::uuid
         and context_object.workspace_id = ${args.caller.workspaceId}::uuid
         and context_object.lifecycle_status in ('pending', 'active')
@@ -396,7 +500,6 @@ export async function createChangeProposal(
       from proposal
       join workspace_members as membership
         on membership.workspace_id = ${args.caller.workspaceId}::uuid
-       and membership.role = 'founder'
       returning context_object_id
     ),
     proposer_response as (
@@ -440,13 +543,20 @@ export async function respondToObject(
     responseText?: string;
   },
 ): Promise<void> {
+  const responseText = args.responseText?.trim() || undefined;
+  if (args.stance === 'accepted_with_condition' && !responseText) {
+    throw new Error('Conditional acceptance requires a condition');
+  }
+
   const [result] = await sql<{ responseCount: number }[]>`
-    with audience_match as (
+    with authorized_object_ids as (
+      ${audienceObjectIds(sql, args.caller.userId)}
+    ),
+    audience_match as (
       select context_object.id
       from context_objects as context_object
-      join context_audiences as audience
-        on audience.context_object_id = context_object.id
-       and audience.user_id = ${args.caller.userId}::uuid
+      join authorized_object_ids
+        on authorized_object_ids.id = context_object.id
       where context_object.id = ${args.objectId}::uuid
         and context_object.workspace_id = ${args.caller.workspaceId}::uuid
         and context_object.author_user_id <> ${args.caller.userId}::uuid
@@ -463,7 +573,7 @@ export async function respondToObject(
         audience_match.id,
         ${args.caller.userId}::uuid,
         ${args.stance},
-        ${args.responseText ?? null}
+        ${responseText ?? null}
       from audience_match
       on conflict (context_object_id, user_id)
       do update set
@@ -481,6 +591,29 @@ export async function respondToObject(
         on response.context_object_id = context_object.id
       where context_object.supersedes_object_id is not null
         and context_object.lifecycle_status = 'pending'
+        and ${args.stance}::stance = 'accepted'
+        and not exists (
+          select 1
+          from context_audiences as other_audience
+          left join participant_responses as other_response
+            on other_response.context_object_id =
+              other_audience.context_object_id
+           and other_response.user_id = other_audience.user_id
+          where other_audience.context_object_id = context_object.id
+            and other_audience.user_id <> ${args.caller.userId}::uuid
+            and other_response.stance is distinct from 'accepted'::stance
+        )
+    ),
+    fully_accepted_resolution as (
+      select
+        context_object.id,
+        context_object.resolves_object_id
+      from context_objects as context_object
+      join response
+        on response.context_object_id = context_object.id
+      where context_object.type = 'decision'
+        and context_object.resolves_object_id is not null
+        and context_object.lifecycle_status in ('pending', 'active')
         and ${args.stance}::stance = 'accepted'
         and not exists (
           select 1
@@ -528,6 +661,32 @@ export async function respondToObject(
       where original.id = accepted_replacement.supersedes_object_id
         and original.lifecycle_status in ('pending', 'active')
       returning original.id
+    ),
+    question_resolution as (
+      update context_objects as open_question
+      set
+        lifecycle_status = 'resolved',
+        resolved_by_object_id = fully_accepted_resolution.id
+      from fully_accepted_resolution
+      where open_question.id =
+          fully_accepted_resolution.resolves_object_id
+        and open_question.type = 'open_question'
+        and open_question.lifecycle_status in ('pending', 'active')
+      returning open_question.id
+    ),
+    question_reopening as (
+      update context_objects as open_question
+      set
+        lifecycle_status = 'active',
+        resolved_by_object_id = null
+      from context_objects as decision
+      join response
+        on response.context_object_id = decision.id
+      where decision.resolves_object_id = open_question.id
+        and open_question.resolved_by_object_id = decision.id
+        and open_question.lifecycle_status = 'resolved'
+        and ${args.stance}::stance <> 'accepted'
+      returning open_question.id
     )
     select
       (select count(*)::integer from response) as "responseCount",
@@ -539,7 +698,15 @@ export async function respondToObject(
         select count(*)::integer
         from replacement_revocation
       ) as "revocationCount",
-      (select count(*)::integer from supersession) as "supersessionCount"
+      (select count(*)::integer from supersession) as "supersessionCount",
+      (
+        select count(*)::integer
+        from question_resolution
+      ) as "resolutionCount",
+      (
+        select count(*)::integer
+        from question_reopening
+      ) as "reopeningCount"
   `;
 
   if (!result || result.responseCount === 0) {

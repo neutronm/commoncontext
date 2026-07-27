@@ -81,4 +81,31 @@ describe("createProposalResult", () => {
         "Created as a pending proposal. Fred can see it for review but has not agreed to it. It is not canonical shared context until Fred responds.",
     });
   });
+
+  it("forwards an optional open-question resolution link", async () => {
+    const domain = proposalDomain();
+    const resolves = "00000000-0000-0000-0000-000000000307";
+
+    await expect(
+      createProposalResult(
+        {
+          sql,
+          caller: fred,
+          publicAppUrl: "https://app.example",
+          domain,
+        },
+        {
+          ...input,
+          resolves,
+        },
+      ),
+    ).resolves.toMatchObject({ resolves });
+    expect(domain.createProposal).toHaveBeenCalledWith(sql, {
+      caller: fred,
+      text: input.text,
+      type: input.type,
+      epistemicStatus: input.epistemic_status,
+      resolvesObjectId: resolves,
+    });
+  });
 });

@@ -28,11 +28,12 @@ export function registerRespondToContextTool(
           .enum([
             "acknowledged",
             "accepted",
+            "accepted_with_condition",
             "disputed",
             "rejected",
           ])
           .describe(
-            "Use 'accepted' to approve, 'rejected' to decline, 'disputed' to challenge, or 'acknowledged' to note without agreement.",
+            "Use 'accepted' to approve without conditions, 'accepted_with_condition' when approval depends on the response_text condition, 'rejected' to decline, 'disputed' to challenge, or 'acknowledged' to note without agreement.",
           ),
         response_text: z.string().optional(),
       }),

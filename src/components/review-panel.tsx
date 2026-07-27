@@ -17,6 +17,7 @@ const statusTextClass: Record<ContextSemanticState, string> = {
   disputed: "text-disputed",
   informational: "text-ink-muted",
   pending: "text-pending",
+  resolved: "text-agreed",
   superseded: "text-ink-muted",
 };
 
@@ -58,13 +59,19 @@ export function ReviewPanel({
   const isAuthor = proposal.authorName === viewerName;
   const statusState = contextSemanticState(proposal, participants);
   const status =
-    proposal.lifecycleStatus === "superseded"
+    proposal.lifecycleStatus === "resolved"
+      ? "Resolved record"
+      : proposal.lifecycleStatus === "superseded"
       ? "Superseded record"
       : isAuthor
         ? `Your proposal · ${proposal.lifecycleStatus === "pending" ? "pending another response" : proposal.lifecycleStatus}`
       : viewerResponse
         ? `Your response · ${viewerResponse.stance.replaceAll("_", " ")}`
         : "Pending your response";
+  const canAct =
+    proposal.visibility === "shared" &&
+    (proposal.lifecycleStatus === "pending" ||
+      proposal.lifecycleStatus === "active");
 
   return (
     <>
@@ -101,25 +108,22 @@ export function ReviewPanel({
           </time>
         </p>
 
-        {isAuthor &&
-          proposal.lifecycleStatus !== "superseded" &&
-          proposal.lifecycleStatus !== "revoked" && (
+        {isAuthor && canAct && (
             <p className="mt-7 text-[17px] leading-7 text-ink">
               Only other participants can accept or decline your proposal.
             </p>
           )}
 
-        {!isAuthor &&
-          !viewerResponse &&
-          proposal.lifecycleStatus !== "superseded" &&
-          proposal.lifecycleStatus !== "revoked" && (
+        {!isAuthor && !viewerResponse && canAct && (
           <p className="mt-7 text-[17px] leading-7 text-ink">
             Nothing becomes shared context until you respond.
           </p>
         )}
 
         <p className="mt-6 text-[16px] leading-7 text-ink">
-          {isAuthor ? (
+          {proposal.lifecycleStatus === "resolved" ? (
+            "This record is resolved and no longer accepts responses or changes."
+          ) : isAuthor ? (
             <>
               Use Propose change to suggest replacement wording.
               <br />

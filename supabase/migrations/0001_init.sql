@@ -30,6 +30,7 @@ create type epistemic_status as enum (
 create type lifecycle_status as enum (
   'pending',
   'active',
+  'resolved',
   'superseded',
   'revoked'
 );
@@ -43,6 +44,7 @@ create type origin as enum (
 create type stance as enum (
   'acknowledged',
   'accepted',
+  'accepted_with_condition',
   'disputed',
   'rejected'
 );
@@ -78,12 +80,19 @@ create table context_objects (
   origin origin not null,
   source_reference text,
   supersedes_object_id uuid references context_objects(id) on delete cascade,
+  resolves_object_id uuid references context_objects(id) on delete set null,
+  resolved_by_object_id uuid references context_objects(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
 create unique index context_objects_one_pending_replacement_idx
   on context_objects(supersedes_object_id)
   where supersedes_object_id is not null
+    and lifecycle_status = 'pending';
+
+create unique index context_objects_one_pending_resolution_idx
+  on context_objects(resolves_object_id)
+  where resolves_object_id is not null
     and lifecycle_status = 'pending';
 
 create table context_audiences (
@@ -101,5 +110,13 @@ create table participant_responses (
   stance stance not null,
   response_text text,
   created_at timestamptz not null default now(),
-  unique (context_object_id, user_id)
+  unique (context_object_id, user_id),
+  constraint participant_responses_condition_text_check check (
+    stance <> 'accepted_with_condition'
+    or nullif(btrim(response_text), '') is not null
+  ),
+  constraint participant_responses_audience_fkey
+    foreign key (context_object_id, user_id)
+    references context_audiences(context_object_id, user_id)
+    on delete cascade
 );
