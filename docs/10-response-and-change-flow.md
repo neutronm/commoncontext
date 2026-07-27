@@ -8,17 +8,19 @@ or eight domain functions, this document controls.
 
 ## Product behavior
 
-Every eligible shared context object exposes these actions on both
-`/workspace` and `/review/[id]`:
+Every eligible shared context object exposes these actions to audience members
+other than its author on both `/workspace` and `/review/[id]`:
 
 1. **Accept** — records stance `accepted`.
 2. **Decline** — records stance `rejected`.
 3. **Propose change** — creates a new pending context object whose
    `supersedes_object_id` points to the original.
 
-The controls remain visible after a participant has responded. Their current
-stance is shown, and they may choose the other response. Private, superseded,
-and revoked objects have no response controls.
+The response controls remain visible after a participant has responded. Their
+current stance is shown, and they may choose the other response. Authors do not
+accept or decline their own wording; proposing it records their stance as
+`accepted` automatically. Authors may still propose replacement wording.
+Private, superseded, and revoked objects have no response controls.
 
 ## Immutable replacement lifecycle
 
@@ -57,12 +59,20 @@ createChangeProposal(sql: Sql, args: {
   objectId: string;
   text: string;
   origin: Extract<Origin, "assistant" | "web">;
-}): Promise<{ id: string; reviewPath: string }>
+}): Promise<{
+  id: string;
+  reviewPath: string;
+  reviewerNames: string[];
+}>
 ```
 
 It rejects callers outside the original audience, private originals,
 superseded or revoked originals, unchanged/empty wording, and objects that
 already have a pending replacement.
+
+The reviewer names come from the same atomic query as the proposal. The MCP
+tool uses them directly instead of making a second database round trip before
+creating the replacement.
 
 ## Assistant tools
 

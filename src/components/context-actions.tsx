@@ -7,6 +7,7 @@ import {
   updateContextAction,
   type ContextActionState,
 } from "@/app/context-actions";
+import { contextActionAvailability } from "@/components/context-actions-state";
 import type { ContextObjectView } from "@/domain/types";
 
 type ContextActionsProps = {
@@ -40,12 +41,12 @@ export function ContextActions({
   const currentResponse = object.responses.find(
     (response) => response.displayName === viewerName,
   );
-  const canRespond =
-    object.visibility === "shared" &&
-    object.lifecycleStatus !== "superseded" &&
-    object.lifecycleStatus !== "revoked";
+  const { canProposeChange, canRespond } = contextActionAvailability(
+    object,
+    viewerName,
+  );
 
-  if (!canRespond) return null;
+  if (!canProposeChange) return null;
 
   const accepted = currentResponse?.stance === "accepted";
   const declined =
@@ -57,7 +58,11 @@ export function ContextActions({
       aria-label={`Actions for ${object.text}`}
       className="border-t border-rule px-5 py-4"
     >
-      {currentResponse ? (
+      {!canRespond ? (
+        <p className="mb-3 font-mono text-[11px] leading-4 tracking-[0.06em] text-pending uppercase">
+          You proposed this item
+        </p>
+      ) : currentResponse ? (
         <p className="mb-3 font-mono text-[11px] leading-4 tracking-[0.06em] text-ink-muted uppercase">
           Your response · {responseLabel(currentResponse.stance)}
         </p>
@@ -67,77 +72,89 @@ export function ContextActions({
         </p>
       )}
 
-      <form action={formAction}>
-        <input name="as" type="hidden" value={viewer} />
-        <input name="objectId" type="hidden" value={object.id} />
-        {mode === "review" ? (
-          <>
-            <label
-              className="mb-2 block font-mono text-[11px] tracking-[0.06em] text-ink-muted uppercase"
-              htmlFor={`response-${object.id}`}
-            >
-              Add your perspective (optional)
-            </label>
-            <textarea
-              className="mb-4 min-h-24 w-full resize-y border border-rule bg-card px-4 py-3 text-[16px] leading-6 text-ink"
-              defaultValue={currentResponse?.responseText ?? ""}
-              id={`response-${object.id}`}
-              name="responseText"
-            />
-          </>
-        ) : (
-          currentResponse?.responseText && (
-            <input
-              name="responseText"
-              type="hidden"
-              value={currentResponse.responseText}
-            />
-          )
-        )}
+      {canRespond ? (
+        <form action={formAction}>
+          <input name="as" type="hidden" value={viewer} />
+          <input name="objectId" type="hidden" value={object.id} />
+          {mode === "review" ? (
+            <>
+              <label
+                className="mb-2 block font-mono text-[11px] tracking-[0.06em] text-ink-muted uppercase"
+                htmlFor={`response-${object.id}`}
+              >
+                Add your perspective (optional)
+              </label>
+              <textarea
+                className="mb-4 min-h-24 w-full resize-y border border-rule bg-card px-4 py-3 text-[16px] leading-6 text-ink"
+                defaultValue={currentResponse?.responseText ?? ""}
+                id={`response-${object.id}`}
+                name="responseText"
+              />
+            </>
+          ) : (
+            currentResponse?.responseText && (
+              <input
+                name="responseText"
+                type="hidden"
+                value={currentResponse.responseText}
+              />
+            )
+          )}
 
-        <fieldset>
-          <legend className="sr-only">Choose your response</legend>
-          <div className="flex flex-wrap gap-2.5">
-            <button
-              aria-pressed={accepted}
-              className={`min-h-10 border px-4 py-2 text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
-                accepted
-                  ? "border-agreed bg-agreed text-card"
-                  : "border-rule bg-card text-ink"
-              }`}
-              disabled={pending || accepted}
-              name="intent"
-              type="submit"
-              value="accept"
-            >
-              {pending ? "Recording…" : "Accept"}
-            </button>
-            <button
-              aria-pressed={declined}
-              className={`min-h-10 border px-4 py-2 text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
-                declined
-                  ? "border-disputed bg-disputed text-card"
-                  : "border-rule bg-card text-ink"
-              }`}
-              disabled={pending || declined}
-              name="intent"
-              type="submit"
-              value="decline"
-            >
-              {pending ? "Recording…" : "Decline"}
-            </button>
-            <button
-              aria-expanded={showChangeForm}
-              className="min-h-10 border border-rule bg-card px-4 py-2 text-[15px] font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={pending}
-              onClick={() => setShowChangeForm((current) => !current)}
-              type="button"
-            >
-              Propose change
-            </button>
-          </div>
-        </fieldset>
-      </form>
+          <fieldset>
+            <legend className="sr-only">Choose your response</legend>
+            <div className="flex flex-wrap gap-2.5">
+              <button
+                aria-pressed={accepted}
+                className={`min-h-10 border px-4 py-2 text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
+                  accepted
+                    ? "border-agreed bg-agreed text-card"
+                    : "border-rule bg-card text-ink"
+                }`}
+                disabled={pending || accepted}
+                name="intent"
+                type="submit"
+                value="accept"
+              >
+                {pending ? "Recording…" : "Accept"}
+              </button>
+              <button
+                aria-pressed={declined}
+                className={`min-h-10 border px-4 py-2 text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
+                  declined
+                    ? "border-disputed bg-disputed text-card"
+                    : "border-rule bg-card text-ink"
+                }`}
+                disabled={pending || declined}
+                name="intent"
+                type="submit"
+                value="decline"
+              >
+                {pending ? "Recording…" : "Decline"}
+              </button>
+              <button
+                aria-expanded={showChangeForm}
+                className="min-h-10 border border-rule bg-card px-4 py-2 text-[15px] font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={pending}
+                onClick={() => setShowChangeForm((current) => !current)}
+                type="button"
+              >
+                Propose change
+              </button>
+            </div>
+          </fieldset>
+        </form>
+      ) : (
+        <button
+          aria-expanded={showChangeForm}
+          className="min-h-10 border border-rule bg-card px-4 py-2 text-[15px] font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={pending}
+          onClick={() => setShowChangeForm((current) => !current)}
+          type="button"
+        >
+          Propose change
+        </button>
+      )}
 
       {showChangeForm && (
         <form action={formAction} className="mt-4 border-t border-rule pt-4">

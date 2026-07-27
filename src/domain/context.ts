@@ -301,6 +301,20 @@ export async function createProposal(
       join workspace_members as membership
         on membership.workspace_id = ${args.caller.workspaceId}::uuid
        and membership.role = 'founder'
+      returning context_object_id
+    ),
+    proposer_response as (
+      insert into participant_responses (
+        context_object_id,
+        user_id,
+        stance
+      )
+      select
+        proposal.id,
+        ${args.caller.userId}::uuid,
+        'accepted'
+      from proposal
+      returning context_object_id
     )
     select
       proposal.id::text as id,
@@ -324,11 +338,13 @@ export async function createChangeProposal(
     text: string;
     origin: Extract<Origin, 'assistant' | 'web'>;
   },
-): Promise<{ id: string; reviewPath: string }> {
+): Promise<{ id: string; reviewPath: string; reviewerNames: string[] }> {
   const replacementText = args.text.trim();
   if (!replacementText) throw new Error('Replacement wording is required');
 
-  const [proposal] = await sql<{ id: string; reviewerHandle: string }[]>`
+  const [proposal] = await sql<
+    { id: string; reviewerHandle: string; reviewerName: string }[]
+  >`
     with original as (
       select context_object.id, context_object.type
       from context_objects as context_object
@@ -354,7 +370,7 @@ export async function createChangeProposal(
       for update of context_object
     ),
     reviewer as (
-      select app_user.handle
+      select app_user.handle, app_user.display_name
       from workspace_members as membership
       join users as app_user
         on app_user.id = membership.user_id
@@ -414,7 +430,8 @@ export async function createChangeProposal(
     )
     select
       proposal.id::text as id,
-      reviewer.handle as "reviewerHandle"
+      reviewer.handle as "reviewerHandle",
+      reviewer.display_name as "reviewerName"
     from proposal
     cross join reviewer
   `;
@@ -428,6 +445,7 @@ export async function createChangeProposal(
   return {
     id: proposal.id,
     reviewPath: `/review/${proposal.id}?as=${encodeURIComponent(proposal.reviewerHandle)}`,
+    reviewerNames: [proposal.reviewerName],
   };
 }
 
@@ -450,6 +468,7 @@ export async function respondToObject(
       where context_object.id = ${args.objectId}::uuid
         and context_object.workspace_id = ${args.caller.workspaceId}::uuid
         and context_object.lifecycle_status in ('pending', 'active')
+        and context_object.author_user_id <> ${args.caller.userId}::uuid
     ),
     response as (
       insert into participant_responses (

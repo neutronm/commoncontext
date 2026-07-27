@@ -40,7 +40,11 @@ export interface DomainApi {
       text: string;
       origin: "assistant" | "web";
     },
-  ): Promise<{ id: string; reviewPath: string }>;
+  ): Promise<{
+    id: string;
+    reviewPath: string;
+    reviewerNames: string[];
+  }>;
   respondToObject(
     sql: Sql,
     args: {

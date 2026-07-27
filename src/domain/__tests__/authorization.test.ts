@@ -161,6 +161,16 @@ describe('domain authorization and bucketing', () => {
         id: expect.any(String),
         reviewPath: `/review/${proposal.id}?as=sara`,
       });
+      await expect(
+        getObjectForReview(sql, proposal.id, fred),
+      ).resolves.toMatchObject({
+        responses: [
+          expect.objectContaining({
+            displayName: 'Fred',
+            stance: 'accepted',
+          }),
+        ],
+      });
     } finally {
       await sql`
         delete from context_objects
@@ -181,6 +191,16 @@ describe('domain authorization and bucketing', () => {
       expect(proposal).toEqual({
         id: expect.any(String),
         reviewPath: `/review/${proposal.id}?as=fred`,
+      });
+      await expect(
+        getObjectForReview(sql, proposal.id, sara),
+      ).resolves.toMatchObject({
+        responses: [
+          expect.objectContaining({
+            displayName: 'Sara',
+            stance: 'accepted',
+          }),
+        ],
       });
     } finally {
       await sql`
@@ -203,11 +223,6 @@ describe('domain authorization and bucketing', () => {
 
     try {
       await respondToObject(sql, {
-        caller: fred,
-        objectId: original.id,
-        stance: 'accepted',
-      });
-      await respondToObject(sql, {
         caller: sara,
         objectId: original.id,
         stance: 'accepted',
@@ -225,9 +240,10 @@ describe('domain authorization and bucketing', () => {
           getObjectForReview(sql, replacement.id, sara),
         ]);
 
-      expect(replacement.reviewPath).toBe(
-        `/review/${replacement.id}?as=fred`,
-      );
+      expect(replacement).toMatchObject({
+        reviewPath: `/review/${replacement.id}?as=fred`,
+        reviewerNames: ['Fred'],
+      });
       expect(originalBeforeReview).toMatchObject({
         lifecycleStatus: 'active',
         text: originalText,
@@ -297,11 +313,6 @@ describe('domain authorization and bucketing', () => {
     try {
       await respondToObject(sql, {
         caller: fred,
-        objectId: original.id,
-        stance: 'accepted',
-      });
-      await respondToObject(sql, {
-        caller: sara,
         objectId: original.id,
         stance: 'accepted',
       });
@@ -465,6 +476,30 @@ describe('domain authorization and bucketing', () => {
         stance: 'accepted',
       }),
     ).rejects.toThrow();
+  });
+
+  it('does not let an author accept or decline their own proposal', async () => {
+    const proposal = await createProposal(sql, {
+      caller: fred,
+      text: 'The author should not review this proposal.',
+      type: 'decision',
+      epistemicStatus: 'proposal',
+    });
+
+    try {
+      await expect(
+        respondToObject(sql, {
+          caller: fred,
+          objectId: proposal.id,
+          stance: 'rejected',
+        }),
+      ).rejects.toThrow();
+    } finally {
+      await sql`
+        delete from context_objects
+        where id = ${proposal.id}::uuid
+      `;
+    }
   });
 
   it('throws when resolveCaller receives an unknown token', async () => {
