@@ -30,8 +30,17 @@ export interface DomainApi {
       text: string;
       type: ObjectType;
       epistemicStatus: EpistemicStatus;
+      resolvesObjectId?: string;
     },
   ): Promise<{ id: string; reviewPath: string }>;
+  createPrivateContext(
+    sql: Sql,
+    args: {
+      caller: Caller;
+      text: string;
+      type: ObjectType;
+    },
+  ): Promise<{ id: string }>;
   createChangeProposal(
     sql: Sql,
     args: {

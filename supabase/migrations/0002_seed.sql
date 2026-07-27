@@ -38,6 +38,8 @@ insert into context_objects (
   origin,
   source_reference,
   supersedes_object_id,
+  resolves_object_id,
+  resolved_by_object_id,
   created_at
 )
 values
@@ -53,6 +55,8 @@ values
     'seed',
     'Weekly sync, July 20',
     null,
+    null,
+    null,
     '2026-07-20T09:00:00Z'
   ),
   (
@@ -65,6 +69,8 @@ values
     'verified_fact',
     'superseded',
     'seed',
+    null,
+    null,
     null,
     null,
     '2026-07-20T09:05:00Z'
@@ -81,6 +87,8 @@ values
     'seed',
     'Weekly sync, July 20',
     '00000000-0000-0000-0000-000000000302',
+    null,
+    null,
     '2026-07-20T09:30:00Z'
   ),
   (
@@ -93,6 +101,8 @@ values
     'verified_fact',
     'active',
     'seed',
+    null,
+    null,
     null,
     null,
     '2026-07-20T09:45:00Z'
@@ -109,6 +119,8 @@ values
     'seed',
     null,
     null,
+    null,
+    null,
     '2026-07-21T10:00:00Z'
   ),
   (
@@ -121,6 +133,8 @@ values
     'reported_fact',
     'active',
     'seed',
+    null,
+    null,
     null,
     null,
     '2026-07-22T11:00:00Z'
@@ -137,6 +151,8 @@ values
     'seed',
     null,
     null,
+    null,
+    null,
     '2026-07-22T11:10:00Z'
   ),
   (
@@ -149,6 +165,8 @@ values
     'perspective',
     'active',
     'seed',
+    null,
+    null,
     null,
     null,
     '2026-07-23T14:00:00Z'
@@ -165,6 +183,8 @@ values
     'seed',
     null,
     null,
+    null,
+    null,
     '2026-07-23T14:20:00Z'
   ),
   (
@@ -177,6 +197,8 @@ values
     'reported_fact',
     'active',
     'seed',
+    null,
+    null,
     null,
     null,
     '2026-07-24T16:00:00Z'
@@ -193,6 +215,8 @@ values
     'seed',
     null,
     null,
+    null,
+    null,
     '2026-07-24T18:00:00Z'
   ),
   (
@@ -205,6 +229,8 @@ values
     'perspective',
     'active',
     'seed',
+    null,
+    null,
     null,
     null,
     '2026-07-24T18:30:00Z'
@@ -265,7 +291,7 @@ values
   (
     '00000000-0000-0000-0000-000000000310',
     '00000000-0000-0000-0000-000000000002',
-    'disputed',
+    'accepted_with_condition',
     'Fred drafts it, but I need to review before it ships.',
     '2026-07-24T16:00:00Z'
   );

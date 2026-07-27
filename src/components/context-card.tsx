@@ -16,6 +16,7 @@ export type ContextSemanticState =
   | "disputed"
   | "informational"
   | "pending"
+  | "resolved"
   | "superseded";
 
 export function contextSemanticState(
@@ -24,6 +25,10 @@ export function contextSemanticState(
 ): ContextSemanticState {
   if (object.lifecycleStatus === "superseded") {
     return "superseded";
+  }
+
+  if (object.lifecycleStatus === "resolved") {
+    return "resolved";
   }
 
   if (
@@ -86,6 +91,7 @@ const semanticGutterClass: Record<ContextSemanticState, string> = {
   disputed: "bg-disputed",
   informational: "bg-ink-muted",
   pending: "bg-pending",
+  resolved: "bg-agreed",
   superseded: "bg-ink-muted",
 };
 
@@ -124,6 +130,14 @@ export function ContextCard({
       ) && (
         <p className="mt-4 text-[15px] leading-6 text-ink-muted">
           Acknowledged is not agreement.
+        </p>
+      )}
+
+      {object.responses.some(
+        (response) => response.stance === "accepted_with_condition",
+      ) && (
+        <p className="mt-4 text-[15px] leading-6 text-pending">
+          Accepted with a condition is not full agreement.
         </p>
       )}
 

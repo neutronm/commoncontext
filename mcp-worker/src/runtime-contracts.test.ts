@@ -8,6 +8,7 @@ import {
   createSharedContextServer,
   SERVER_INSTRUCTIONS,
 } from "./server";
+import { ADD_PRIVATE_CONTEXT_DESCRIPTION } from "./tools/add-private-context";
 import {
   GET_SHARED_CONTEXT_DESCRIPTION,
   PROPOSAL_NOTE,
@@ -18,6 +19,9 @@ import { RESPOND_TO_CONTEXT_DESCRIPTION } from "./tools/respond-to-context";
 
 describe("MCP runtime contracts", () => {
   it("keeps all tool descriptions byte-for-byte unchanged", () => {
+    expect(ADD_PRIVATE_CONTEXT_DESCRIPTION).toBe(
+      "Save an item as private context for the current user. The item is visible only to its owner and is never included in another participant's shared context.",
+    );
     expect(GET_SHARED_CONTEXT_DESCRIPTION).toBe(
       "Retrieve the complete set of shared project context the current user is authorized to see, including decisions, tasks, blockers, open questions, and each founder's stated perspectives — along with who authored each item, who has accepted or disputed it, and where it came from. Use this whenever the user asks what has been decided, agreed, disputed, or what the other person thinks. Also use this before responding to an affirmative intent to tell, inform, or make a named person aware of something, and before suggesting that durable project information be proposed, so you can verify the person appears in shared_with and avoid duplicating information that is already shared or pending. This returns everything the user is permitted to see; it is not a search, and nothing outside this result is available to you.",
     );

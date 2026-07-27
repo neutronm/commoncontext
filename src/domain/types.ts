@@ -5,10 +5,20 @@ export type ObjectType =
 export type EpistemicStatus =
   | 'verified_fact' | 'reported_fact' | 'perspective' | 'proposal';
 
-export type LifecycleStatus = 'pending' | 'active' | 'superseded' | 'revoked';
+export type LifecycleStatus =
+  | 'pending'
+  | 'active'
+  | 'resolved'
+  | 'superseded'
+  | 'revoked';
 export type Visibility = 'private' | 'shared';   // derived, never stored
 export type Origin = 'seed' | 'assistant' | 'web';
-export type Stance = 'acknowledged' | 'accepted' | 'disputed' | 'rejected';
+export type Stance =
+  | 'acknowledged'
+  | 'accepted'
+  | 'accepted_with_condition'
+  | 'disputed'
+  | 'rejected';
 
 export interface ParticipantResponseView {
   displayName: string;          // "Sara"
@@ -30,6 +40,8 @@ export interface ContextObjectView {
   audienceNames: string[];      // ["Fred","Sara"]
   sourceReference: string | null;
   supersedesText: string | null;
+  resolvesObjectId: string | null;
+  resolvedByObjectId: string | null;
   responses: ParticipantResponseView[];
   createdAt: string;
 }

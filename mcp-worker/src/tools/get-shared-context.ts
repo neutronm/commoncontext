@@ -48,6 +48,10 @@ function optionalProvenance(object: ContextObjectView): WireObject {
   return {
     ...(object.sourceReference ? { source: object.sourceReference } : {}),
     ...(object.supersedesText ? { supersedes: object.supersedesText } : {}),
+    ...(object.resolvesObjectId ? { resolves: object.resolvesObjectId } : {}),
+    ...(object.resolvedByObjectId
+      ? { resolved_by: object.resolvedByObjectId }
+      : {}),
     ...(responseTextMap(object)
       ? { response_texts: responseTextMap(object) }
       : {}),
@@ -104,15 +108,32 @@ function unresolvedNote(object: ContextObjectView): string {
   const privateBoundary = privateNote(object);
   if (privateBoundary) return privateBoundary;
 
+  const conditionalAcceptors = object.responses
+    .filter(({ stance }) => stance === "accepted_with_condition")
+    .map(({ displayName }) => displayName);
   const unaccepted = object.audienceNames.filter(
     (name) =>
       name !== object.authorName &&
       !object.responses.some(
         ({ displayName, stance }) =>
-          displayName === name && stance === "accepted",
+          displayName === name &&
+          (stance === "accepted" || stance === "accepted_with_condition"),
       ),
   );
-  return `Proposed by ${object.authorName}. Not accepted by ${unaccepted.join(" or ")}. Do not report this as agreed.`;
+  const status = [
+    conditionalAcceptors.length > 0
+      ? `Accepted with a condition by ${conditionalAcceptors.join(" and ")}; the condition remains unresolved.`
+      : null,
+    unaccepted.length > 0
+      ? `Not accepted by ${unaccepted.join(" or ")}.`
+      : null,
+  ].filter((part): part is string => part !== null);
+
+  if (status.length === 0) {
+    status.push("Not yet fully accepted by every participant.");
+  }
+
+  return `Proposed by ${object.authorName}. ${status.join(" ")} Do not report this as agreed.`;
 }
 
 function serializeUnresolved(object: ContextObjectView): WireObject {
@@ -162,7 +183,9 @@ function serializeSource(object: ContextObjectView): WireObject {
     author: object.authorName,
     visibility: object.visibility,
     ...optionalProvenance(object),
-    note: "Source material, not a claim either founder is asserting.",
+    note:
+      privateNote(object) ??
+      "Source material, not a claim either founder is asserting.",
   };
 }
 

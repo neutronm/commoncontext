@@ -49,12 +49,27 @@ export async function updateContextAction(
   const caller = await resolveWebViewer(sql, viewer);
 
   try {
-    if (intent === "accept" || intent === "decline") {
+    if (
+      intent === "accept" ||
+      intent === "accept_with_condition" ||
+      intent === "decline"
+    ) {
       const responseText = formString(formData, "responseText")?.trim();
+      if (intent === "accept_with_condition" && !responseText) {
+        return {
+          status: "error",
+          message: "Write the condition before accepting with a condition.",
+        };
+      }
       await respondToObject(sql, {
         caller,
         objectId,
-        stance: intent === "accept" ? "accepted" : "rejected",
+        stance:
+          intent === "accept"
+            ? "accepted"
+            : intent === "accept_with_condition"
+              ? "accepted_with_condition"
+              : "rejected",
         responseText: responseText || undefined,
       });
       refresh();
@@ -64,7 +79,9 @@ export async function updateContextAction(
         message:
           intent === "accept"
             ? "Acceptance recorded."
-            : "Decline recorded.",
+            : intent === "accept_with_condition"
+              ? "Conditional acceptance recorded."
+              : "Decline recorded.",
       };
     }
 

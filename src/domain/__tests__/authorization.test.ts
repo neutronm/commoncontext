@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   bucketContext,
   createChangeProposal,
+  createPrivateContext,
   createProposal,
   getAuthorizedObjects,
   getObjectForReview,
@@ -135,6 +136,38 @@ describe('domain authorization and bucketing', () => {
     expect(Array.isArray(reviewObject.audienceNames)).toBe(true);
   });
 
+  it('uses context_audiences as the read and response authorization source', async () => {
+    const proposal = await createProposal(sql, {
+      caller: fred,
+      text: 'Sara can read and respond through the same audience record.',
+      type: 'task',
+      epistemicStatus: 'proposal',
+    });
+
+    try {
+      await expect(getAuthorizedObjects(sql, sara)).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: proposal.id,
+            audienceNames: ['Fred', 'Sara'],
+          }),
+        ]),
+      );
+      await expect(
+        respondToObject(sql, {
+          caller: sara,
+          objectId: proposal.id,
+          stance: 'accepted',
+        }),
+      ).resolves.toBeUndefined();
+    } finally {
+      await sql`
+        delete from context_objects
+        where id = ${proposal.id}::uuid
+      `;
+    }
+  });
+
   it('returns canonical ISO timestamps for objects and responses', async () => {
     const objects = await getAuthorizedObjects(sql, sara);
     for (const object of objects) {
@@ -208,6 +241,163 @@ describe('domain authorization and bucketing', () => {
         where id = ${proposal.id}::uuid
       `;
     }
+  });
+
+  it('keeps caller-owned private context out of the counterpart read', async () => {
+    const text = 'Privately revisit the payments fallback before the next sync.';
+    const privateObject = await createPrivateContext(sql, {
+      caller: fred,
+      text,
+      type: 'perspective',
+    });
+
+    try {
+      const [fredObjects, saraObjectsAfterWrite] = await Promise.all([
+        getAuthorizedObjects(sql, fred),
+        getAuthorizedObjects(sql, sara),
+      ]);
+      expect(fredObjects).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: privateObject.id,
+            text,
+            visibility: 'private',
+            ownerName: 'Fred',
+            audienceNames: ['Fred'],
+            responses: [],
+          }),
+        ]),
+      );
+      expect(
+        saraObjectsAfterWrite.some((object) => object.id === privateObject.id),
+      ).toBe(false);
+      expect(JSON.stringify(saraObjectsAfterWrite)).not.toContain(text);
+    } finally {
+      await sql`
+        delete from context_objects
+        where id = ${privateObject.id}::uuid
+      `;
+    }
+  });
+
+  it('resolves an open question only after its decision is fully accepted', async () => {
+    const openQuestion = saraObjects.find((object) => object.text === texts.S7);
+    expect(openQuestion).toBeDefined();
+    const decision = await createProposal(sql, {
+      caller: fred,
+      text: 'We launch with a manual payments fallback if the integration is not live.',
+      type: 'decision',
+      epistemicStatus: 'proposal',
+      resolvesObjectId: openQuestion!.id,
+    });
+
+    try {
+      await respondToObject(sql, {
+        caller: sara,
+        objectId: decision.id,
+        stance: 'accepted_with_condition',
+        responseText: 'Only if support owns the fallback.',
+      });
+      await expect(
+        getObjectForReview(sql, openQuestion!.id, sara),
+      ).resolves.toMatchObject({
+        lifecycleStatus: 'active',
+        resolvedByObjectId: null,
+      });
+
+      await respondToObject(sql, {
+        caller: sara,
+        objectId: decision.id,
+        stance: 'accepted',
+      });
+
+      const [resolvedQuestion, acceptedDecision, objects] = await Promise.all([
+        getObjectForReview(sql, openQuestion!.id, sara),
+        getObjectForReview(sql, decision.id, sara),
+        getAuthorizedObjects(sql, sara),
+      ]);
+      expect(resolvedQuestion).toMatchObject({
+        lifecycleStatus: 'resolved',
+        resolvedByObjectId: decision.id,
+      });
+      expect(acceptedDecision).toMatchObject({
+        lifecycleStatus: 'active',
+        resolvesObjectId: openQuestion!.id,
+        responses: expect.arrayContaining([
+          expect.objectContaining({
+            displayName: 'Fred',
+            stance: 'accepted',
+          }),
+          expect.objectContaining({
+            displayName: 'Sara',
+            stance: 'accepted',
+          }),
+        ]),
+      });
+
+      const bundle = bucketContext(objects, {
+        workspace: 'Launch planning',
+        viewer: 'Sara',
+        participants: ['Fred', 'Sara'],
+      });
+      expect(bundle.openQuestions.map((object) => object.id)).not.toContain(
+        openQuestion!.id,
+      );
+      expect(bundle.agreed.map((object) => object.id)).toContain(decision.id);
+
+      await respondToObject(sql, {
+        caller: sara,
+        objectId: decision.id,
+        stance: 'accepted_with_condition',
+        responseText: 'Only if support owns the fallback.',
+      });
+      const [reopenedQuestion, objectsAfterDowngrade] = await Promise.all([
+        getObjectForReview(sql, openQuestion!.id, sara),
+        getAuthorizedObjects(sql, sara),
+      ]);
+      expect(reopenedQuestion).toMatchObject({
+        lifecycleStatus: 'active',
+        resolvedByObjectId: null,
+      });
+      const reopenedBundle = bucketContext(objectsAfterDowngrade, {
+        workspace: 'Launch planning',
+        viewer: 'Sara',
+        participants: ['Fred', 'Sara'],
+      });
+      expect(reopenedBundle.openQuestions.map((object) => object.id)).toContain(
+        openQuestion!.id,
+      );
+      expect(reopenedBundle.unresolved.map((object) => object.id)).toContain(
+        decision.id,
+      );
+    } finally {
+      await sql`
+        update context_objects
+        set
+          lifecycle_status = 'active',
+          resolved_by_object_id = null
+        where id = ${openQuestion!.id}::uuid
+      `;
+      await sql`
+        delete from context_objects
+        where id = ${decision.id}::uuid
+      `;
+    }
+  });
+
+  it('rejects resolves links to anything other than an authorized open question', async () => {
+    const decision = saraObjects.find((object) => object.text === texts.S1);
+    expect(decision).toBeDefined();
+
+    await expect(
+      createProposal(sql, {
+        caller: fred,
+        text: 'This must not resolve a decision.',
+        type: 'decision',
+        epistemicStatus: 'proposal',
+        resolvesObjectId: decision!.id,
+      }),
+    ).rejects.toThrow('Unable to create proposal');
   });
 
   it('proposes replacement wording without editing the original object', async () => {
@@ -496,6 +686,30 @@ describe('domain authorization and bucketing', () => {
     }
   });
 
+  it('requires text for an accepted-with-condition response', async () => {
+    const proposal = await createProposal(sql, {
+      caller: fred,
+      text: 'A conditional response must name its condition.',
+      type: 'task',
+      epistemicStatus: 'proposal',
+    });
+
+    try {
+      await expect(
+        respondToObject(sql, {
+          caller: sara,
+          objectId: proposal.id,
+          stance: 'accepted_with_condition',
+        }),
+      ).rejects.toThrow('requires a condition');
+    } finally {
+      await sql`
+        delete from context_objects
+        where id = ${proposal.id}::uuid
+      `;
+    }
+  });
+
   it('throws when respondToObject caller is outside the audience', async () => {
     const target = saraObjects.find((object) => object.text === texts.S1);
     expect(target).toBeDefined();
@@ -557,9 +771,21 @@ describe('domain authorization and bucketing', () => {
     );
     expect(bucketTexts(bundle, 'blockers')).toEqual([texts.S6]);
     expect(bucketTexts(bundle, 'openQuestions')).toEqual([texts.S7]);
-    expect(bucketTexts(bundle, 'disputed')).toEqual([texts.S10]);
+    expect(bucketTexts(bundle, 'disputed')).toEqual([]);
     expect(bucketTexts(bundle, 'sources')).toEqual([texts.S9]);
-    expect(bucketTexts(bundle, 'unresolved')).toEqual([]);
+    expect(bucketTexts(bundle, 'unresolved')).toEqual([texts.S10]);
+
+    const conditional = bundle.unresolved[0];
+    expect(conditional).toMatchObject({
+      audienceNames: ['Fred', 'Sara'],
+      responses: [
+        expect.objectContaining({
+          displayName: 'Sara',
+          stance: 'accepted_with_condition',
+          responseText: 'Fred drafts it, but I need to review before it ships.',
+        }),
+      ],
+    });
 
     const bucketed = [
       ...bundle.agreed,

@@ -24,6 +24,7 @@ const statusTextClass: Record<ContextSemanticState, string> = {
   disputed: "text-disputed",
   informational: "text-ink-muted",
   pending: "text-pending",
+  resolved: "text-agreed",
   superseded: "text-ink-muted",
 };
 
@@ -66,7 +67,9 @@ export function ReviewPanel({
       ? "text-private"
       : statusTextClass[statusState];
   const status =
-    proposal.lifecycleStatus === "superseded"
+    proposal.lifecycleStatus === "resolved"
+      ? "Resolved record"
+      : proposal.lifecycleStatus === "superseded"
       ? "Superseded record"
       : proposal.visibility === "private"
         ? "Private record"
@@ -75,11 +78,12 @@ export function ReviewPanel({
           : viewerResponse
             ? `Your response · ${metadataValue(viewerResponse.stance)}`
             : "Pending your response";
-  const title =
-    !isAuthor &&
-    !viewerResponse &&
+  const canAct =
     proposal.visibility === "shared" &&
-    proposal.lifecycleStatus !== "superseded"
+    (proposal.lifecycleStatus === "pending" ||
+      proposal.lifecycleStatus === "active");
+  const title =
+    !isAuthor && !viewerResponse && canAct
       ? `${proposal.authorName} proposed a ${metadataValue(proposal.type)}`
       : `${titleLabel(proposal.type)} details`;
 
@@ -117,27 +121,24 @@ export function ReviewPanel({
           participants={participants}
         />
 
-        {!isAuthor &&
-          !viewerResponse &&
-          proposal.visibility === "shared" &&
-          proposal.lifecycleStatus !== "superseded" && (
-            <p className="mt-7 text-[17px] leading-7 text-ink">
-              Nothing becomes shared context until you respond.
-            </p>
-          )}
+        {!isAuthor && !viewerResponse && canAct && (
+          <p className="mt-7 text-[17px] leading-7 text-ink">
+            Nothing becomes shared context until you respond.
+          </p>
+        )}
 
-        {isAuthor &&
-          proposal.visibility === "shared" &&
-          proposal.lifecycleStatus !== "superseded" &&
-          proposal.lifecycleStatus !== "revoked" && (
-            <p className="mt-7 text-[17px] leading-7 text-ink">
-              Only other participants can accept or decline your proposal.
-            </p>
-          )}
+        {isAuthor && canAct && (
+          <p className="mt-7 text-[17px] leading-7 text-ink">
+            Only other participants can accept or decline your proposal.
+          </p>
+        )}
 
-        {(isAuthor ? proposal.visibility === "shared" : true) && (
+        {(proposal.lifecycleStatus === "resolved" ||
+          (isAuthor ? proposal.visibility === "shared" : true)) && (
           <p className="mt-6 text-[16px] leading-7 text-ink">
-            {isAuthor ? (
+            {proposal.lifecycleStatus === "resolved" ? (
+              "This record is resolved and no longer accepts responses or changes."
+            ) : isAuthor ? (
               <>
                 Use Propose change to suggest replacement wording.
                 <br />
