@@ -55,10 +55,13 @@ export function ReviewPanel({
   const viewerResponse = proposal.responses.find(
     (response) => response.displayName === viewerName,
   );
+  const isAuthor = proposal.authorName === viewerName;
   const statusState = contextSemanticState(proposal, participants);
   const status =
     proposal.lifecycleStatus === "superseded"
       ? "Superseded record"
+      : isAuthor
+        ? `Your proposal · ${proposal.lifecycleStatus === "pending" ? "pending another response" : proposal.lifecycleStatus}`
       : viewerResponse
         ? `Your response · ${viewerResponse.stance.replaceAll("_", " ")}`
         : "Pending your response";
@@ -98,16 +101,37 @@ export function ReviewPanel({
           </time>
         </p>
 
-        {!viewerResponse && proposal.lifecycleStatus !== "superseded" && (
+        {isAuthor &&
+          proposal.lifecycleStatus !== "superseded" &&
+          proposal.lifecycleStatus !== "revoked" && (
+            <p className="mt-7 text-[17px] leading-7 text-ink">
+              Only other participants can accept or decline your proposal.
+            </p>
+          )}
+
+        {!isAuthor &&
+          !viewerResponse &&
+          proposal.lifecycleStatus !== "superseded" &&
+          proposal.lifecycleStatus !== "revoked" && (
           <p className="mt-7 text-[17px] leading-7 text-ink">
             Nothing becomes shared context until you respond.
           </p>
         )}
 
         <p className="mt-6 text-[16px] leading-7 text-ink">
-          Your response is recorded alongside the original statement.
-          <br />
-          Its wording is never edited or removed.
+          {isAuthor ? (
+            <>
+              Use Propose change to suggest replacement wording.
+              <br />
+              The original wording is never edited or removed.
+            </>
+          ) : (
+            <>
+              Your response is recorded alongside the original statement.
+              <br />
+              Its wording is never edited or removed.
+            </>
+          )}
         </p>
       </div>
     </>

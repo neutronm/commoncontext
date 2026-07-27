@@ -16,7 +16,7 @@ describe("MCP runtime contracts", () => {
       "Propose a new item for the shared project context. This does NOT share anything immediately — it creates a pending proposal that the other participants must review and respond to before it becomes shared context. Use this when the user asks to record, save, or add something to the shared project. Always tell the user afterward that the item is pending review and not yet agreed.",
     );
     expect(RESPOND_TO_CONTEXT_DESCRIPTION).toBe(
-      "Record the current user's stance on a shared context item: accept it, decline it, dispute it, or add their own perspective alongside it. This never edits or deletes the original item. Use propose_context_change instead when the user wants replacement wording.",
+      "Record the current user's stance on another participant's shared context item: accept it, decline it, dispute it, or add their own perspective alongside it. Authors cannot respond to their own items; use propose_context_change when the user wants to revise their own proposal or suggest replacement wording. This never edits or deletes the original item.",
     );
     expect(PROPOSE_CONTEXT_CHANGE_DESCRIPTION).toBe(
       "Propose replacement wording for an existing shared context item. This creates a new pending object linked to the original; it never edits the original, and the original remains current unless every participant accepts the replacement.",

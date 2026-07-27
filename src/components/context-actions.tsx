@@ -40,12 +40,13 @@ export function ContextActions({
   const currentResponse = object.responses.find(
     (response) => response.displayName === viewerName,
   );
-  const canRespond =
+  const canAct =
     object.visibility === "shared" &&
     object.lifecycleStatus !== "superseded" &&
     object.lifecycleStatus !== "revoked";
+  const isAuthor = object.authorName === viewerName;
 
-  if (!canRespond) return null;
+  if (!canAct) return null;
 
   const accepted = currentResponse?.stance === "accepted";
   const declined =
@@ -57,7 +58,11 @@ export function ContextActions({
       aria-label={`Actions for ${object.text}`}
       className="border-t border-rule px-5 py-4"
     >
-      {currentResponse ? (
+      {isAuthor ? (
+        <p className="mb-3 font-mono text-[11px] leading-4 tracking-[0.06em] text-ink-muted uppercase">
+          Your proposal · only other participants can accept or decline
+        </p>
+      ) : currentResponse ? (
         <p className="mb-3 font-mono text-[11px] leading-4 tracking-[0.06em] text-ink-muted uppercase">
           Your response · {responseLabel(currentResponse.stance)}
         </p>
@@ -70,7 +75,7 @@ export function ContextActions({
       <form action={formAction}>
         <input name="as" type="hidden" value={viewer} />
         <input name="objectId" type="hidden" value={object.id} />
-        {mode === "review" ? (
+        {mode === "review" && !isAuthor ? (
           <>
             <label
               className="mb-2 block font-mono text-[11px] tracking-[0.06em] text-ink-muted uppercase"
@@ -85,7 +90,7 @@ export function ContextActions({
               name="responseText"
             />
           </>
-        ) : (
+        ) : !isAuthor ? (
           currentResponse?.responseText && (
             <input
               name="responseText"
@@ -93,39 +98,45 @@ export function ContextActions({
               value={currentResponse.responseText}
             />
           )
-        )}
+        ) : null}
 
         <fieldset>
-          <legend className="sr-only">Choose your response</legend>
+          <legend className="sr-only">
+            {isAuthor ? "Change your proposal" : "Choose your response"}
+          </legend>
           <div className="flex flex-wrap gap-2.5">
-            <button
-              aria-pressed={accepted}
-              className={`min-h-10 border px-4 py-2 text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
-                accepted
-                  ? "border-agreed bg-agreed text-card"
-                  : "border-rule bg-card text-ink"
-              }`}
-              disabled={pending || accepted}
-              name="intent"
-              type="submit"
-              value="accept"
-            >
-              {pending ? "Recording…" : "Accept"}
-            </button>
-            <button
-              aria-pressed={declined}
-              className={`min-h-10 border px-4 py-2 text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
-                declined
-                  ? "border-disputed bg-disputed text-card"
-                  : "border-rule bg-card text-ink"
-              }`}
-              disabled={pending || declined}
-              name="intent"
-              type="submit"
-              value="decline"
-            >
-              {pending ? "Recording…" : "Decline"}
-            </button>
+            {!isAuthor && (
+              <>
+                <button
+                  aria-pressed={accepted}
+                  className={`min-h-10 border px-4 py-2 text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
+                    accepted
+                      ? "border-agreed bg-agreed text-card"
+                      : "border-rule bg-card text-ink"
+                  }`}
+                  disabled={pending || accepted}
+                  name="intent"
+                  type="submit"
+                  value="accept"
+                >
+                  {pending ? "Recording…" : "Accept"}
+                </button>
+                <button
+                  aria-pressed={declined}
+                  className={`min-h-10 border px-4 py-2 text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
+                    declined
+                      ? "border-disputed bg-disputed text-card"
+                      : "border-rule bg-card text-ink"
+                  }`}
+                  disabled={pending || declined}
+                  name="intent"
+                  type="submit"
+                  value="decline"
+                >
+                  {pending ? "Recording…" : "Decline"}
+                </button>
+              </>
+            )}
             <button
               aria-expanded={showChangeForm}
               className="min-h-10 border border-rule bg-card px-4 py-2 text-[15px] font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"

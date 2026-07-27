@@ -70,6 +70,7 @@ export default async function WorkspacePage({
               key={object.id}
               object={object}
               participants={participants}
+              reviewHref={`/review/${object.id}?as=${viewer}`}
             />
           ))}
         </div>

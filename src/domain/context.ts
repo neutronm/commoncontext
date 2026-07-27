@@ -449,6 +449,7 @@ export async function respondToObject(
        and audience.user_id = ${args.caller.userId}::uuid
       where context_object.id = ${args.objectId}::uuid
         and context_object.workspace_id = ${args.caller.workspaceId}::uuid
+        and context_object.author_user_id <> ${args.caller.userId}::uuid
         and context_object.lifecycle_status in ('pending', 'active')
     ),
     response as (
@@ -542,7 +543,7 @@ export async function respondToObject(
   `;
 
   if (!result || result.responseCount === 0) {
-    throw new Error('Caller is not in the object audience');
+    throw new Error('Caller cannot respond to this context object');
   }
 }
 

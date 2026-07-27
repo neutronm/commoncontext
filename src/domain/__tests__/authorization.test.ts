@@ -203,11 +203,6 @@ describe('domain authorization and bucketing', () => {
 
     try {
       await respondToObject(sql, {
-        caller: fred,
-        objectId: original.id,
-        stance: 'accepted',
-      });
-      await respondToObject(sql, {
         caller: sara,
         objectId: original.id,
         stance: 'accepted',
@@ -300,12 +295,6 @@ describe('domain authorization and bucketing', () => {
         objectId: original.id,
         stance: 'accepted',
       });
-      await respondToObject(sql, {
-        caller: sara,
-        objectId: original.id,
-        stance: 'accepted',
-      });
-
       const replacement = await createChangeProposal(sql, {
         caller: fred,
         objectId: original.id,
@@ -448,6 +437,37 @@ describe('domain authorization and bucketing', () => {
       ...bundle.blockers,
       ...bundle.sources,
     ]).toEqual([]);
+  });
+
+  it('does not let authors respond to their own proposals', async () => {
+    const proposal = await createProposal(sql, {
+      caller: fred,
+      text: 'Only the other founder can respond to this proposal.',
+      type: 'decision',
+      epistemicStatus: 'proposal',
+    });
+
+    try {
+      await expect(
+        respondToObject(sql, {
+          caller: fred,
+          objectId: proposal.id,
+          stance: 'rejected',
+        }),
+      ).rejects.toThrow('Caller cannot respond');
+
+      await expect(
+        getObjectForReview(sql, proposal.id, fred),
+      ).resolves.toMatchObject({
+        lifecycleStatus: 'pending',
+        responses: [],
+      });
+    } finally {
+      await sql`
+        delete from context_objects
+        where id = ${proposal.id}::uuid
+      `;
+    }
   });
 
   it('throws when respondToObject caller is outside the audience', async () => {

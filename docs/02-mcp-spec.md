@@ -172,7 +172,7 @@ Built and exposed, but **not used on camera** — Sara responds through the web 
 
 **Description string:**
 
-> Record the current user's stance on a shared context item: accept it, dispute it, or add their own perspective alongside it. This never edits or deletes the original item.
+> Record the current user's stance on another participant's shared context item: accept it, decline it, dispute it, or add their own perspective alongside it. Authors cannot respond to their own items; use propose_context_change when the user wants to revise their own proposal or suggest replacement wording. This never edits or deletes the original item.
 
 **Input schema:**
 ```ts
@@ -183,7 +183,8 @@ z.object({
 })
 ```
 
-Throws if the caller isn't in the object's audience.
+Throws if the caller isn't in the object's audience or authored the object.
+Authors use `propose_context_change` instead of responding to their own items.
 
 ---
 
@@ -219,5 +220,6 @@ Whichever you pick, **disable every other connector** in both sessions before re
 1. MCP inspector connects to both token URLs; all three tools list with the verbatim descriptions above.
 2. `get_shared_context` on Sara's token returns valid JSON with all seven buckets present (empty arrays allowed) and zero objects authored privately by Fred.
 3. `propose_shared_context` creates a `pending` object and returns a `review_url` that loads.
-4. `respond_to_context` with a non-audience caller returns an error, not a silent no-op.
+4. `respond_to_context` with a non-audience caller or the object's author
+   returns an error, not a silent no-op.
 5. An invalid token returns 401 after the required token-table lookup, with no database access beyond that lookup and no domain or tool work for the unknown token.
